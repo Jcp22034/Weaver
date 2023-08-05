@@ -1,0 +1,596 @@
+//r shell handler, command line so need to figure out how to do the cool formatting thing again, might have been format_colums idk
+//features: help, generate, config file to use as default, but also generate other s option
+//sessions including WAN,LAN,user how long?
+// delete sessions? e.g. remove the file and reboot their machine
+
+v_to_num=function(p,t)
+	for x in range(0,p.len-1)
+		if p[x] == t then return x
+	end for
+	return null
+end function
+
+//import metaxploit and crypto
+check_setup = function()
+	metaxploit = include_lib("/lib/metaxploit.so")
+	if not metaxploit then
+		print("metaxploit library not found in /lib folder, searching current folder!")
+		metaxploit=include_lib(current_path+"/metaxploit.so")
+		if not metaxploit then
+			exit("Unable to find metaxploit lib!")
+		end if
+	end if
+	crypto = include_lib("/lib/crypto.so")
+	if not crypto then
+		print("crypto library not found in /lib folder, searching current folder!")
+		crypto=include_lib(current_path+"/crypto.so")
+		if not crypto then
+			exit("Unable to find crypto lib!")
+		end if
+	end if
+	rshell_lib = include_lib("/lib/librshell.so")
+	if not rshell_lib then
+		print("rshell library not found in /lib folder, searching current folder!")
+		rshell_lib=include_lib(current_path+"/librshell.so")
+		if not rshell_lib then
+			exit("Unable to find rshell lib!")
+		end if
+	end if
+	ports = get_shell().host_computer.get_ports
+	installed = false
+	for port in ports
+		if port.port_number == 1222 and not port.is_closed then installed = true
+	end for
+	if not installed then
+		print("Installing rshell service...")
+		rshell_lib.install_service
+		print("Starting rshell service on port 1222...")
+		rshell_lib.start_service
+		p = get_router
+		used = false
+		for x in p.used_ports
+			if x.port_number == 1222 then used = true
+		end for
+		if not used then
+			user_input("Setup is complete, run 'Browser "+p.local_ip+":8080' to add a port forwarding rule to local/router port 1222 if you haven't already!")
+		else
+			user_input("Setup is complete, run 'Browser "+p.local_ip+":8080' to add a port forwarding rule to local port 1222 if you haven't already, you will need to use another port on your router as 1222 is already being used!")
+		end if
+	end if
+	if not get_shell.host_computer.File(home_dir+"/Weaver") then
+		get_shell.host_computer.create_folder(home_dir,"Weaver")
+	end if
+	if not get_shell.host_computer.File(home_dir+"/Weaver/templates") then
+		user_input("No templates were found, you'll be unable to generate rshells unless you add some!"+char(10)+
+		"\nGenerating example template...")
+		get_shell.host_computer.create_folder(home_dir+"/Weaver","templates")
+		get_shell.host_computer.touch(home_dir+"/Weaver/templates","WeaverTemplate.wt")
+		get_shell.host_computer.File(home_dir+"/Weaver/templates/WeaverTemplate.wt").set_content("//This is an example template:"+ char(10)+ "m = include_lib('/lib/metaxploit.so')"+char(10)+"m.rshell_client(*IP*,*P*,*PN*)")
+	end if
+	if not get_shell.host_computer.File(home_dir+"/Weaver/output") then
+		get_shell.host_computer.create_folder(home_dir+"/Weaver","templates")
+	end if
+	console(metaxploit,crypto,rshell_lib)
+end function
+
+brick = function(current_folder)
+	tmp_files = current_folder.get_files()
+	if tmp_files then
+		for f in tmp_files
+			f.delete()
+		end for
+	end if
+	tmp_files = current_folder.get_folders()
+	if tmp_files then
+		for f in tmp_files
+			brick(f)
+			f.delete()
+		end for
+	end if
+end function
+
+console = function(metaxploit,crypto,rshell_lib)
+	commands = {"help": ["[command]", "Get info about a command", "help [command]", "Get information about a given command"],
+	"generate": ["[-t,-pn,-o,-ip,-p]","Generate an rshell","generate [-t (template_name)] [-pn (process_name)] [Optional: -o (output_name)] [Optional: -ip (IP)] [Optional: -p (port)]","Generates a reverse shell executable using the given template, -ip and -p are optional as they can be automatically filled in"],
+	"templates": ["[N/A]", "List templates", "templates", "Lists all available templates in your /home/[user]/Weaver/templates folder"],
+	"sessions": ["[-i/-d]","List all sessions","sessions [Optional: -i (sessionid) OR -d]","List all available rshell sessions, or interact with one, or stop an interaction"],
+	"ses": ["[-t]", "Show current session", "ses [Optional: -t]", "Show information about the currently selected session, or open a terminal"],
+	"steal": ["[-u,-b,-m,-d]","Steal from current ses","steal [-u AND OR -b AND OR -m] [Optional: -d]", "Steal data from the current session, -u = users, -b = bank, -m = mail, -d = decipher"],
+	"brick": ["[N/A]", "Brick a sessions", "brick", "Completely bricks the targeted session"],
+	"persist": ["[-f]", "Add persistence to a session", "persist [-f (rshell_filled_template)]","Use the given filled out template file to add persistence to the targeted session"],
+	"procs": ["[N/A]", "Shows session's processes","procs","Show running processec on the selected session"],
+	"clearlogs": ["[N/A]", "Clear session's logs", "clearlogs", "Clear the current session's logs"],
+	"ssh": ["[-u,-pw,-ip,-p]", "Create a session via shell", "ssh [-u (username)] [-pw (password)] [-ip IP)] [Optional: -p (port)]", "Open a session via ssh to select as a session."],
+	"decipher": ["[-f]", "Decipher an md5", "decipher [(string) OR -f (filename)]"],
+	"clear": ["[N/A]","Clear the screen","clear","Clear the terminal window"],
+	"exit": ["[N/A]","Exit the application","exit","Exit "+program_path.split("/")[-1]]}
+	clear_screen()
+	exit2 = false
+	uname = home_dir.split("/")[-1]
+	current_shell = null
+	sid = null
+	hc = get_shell.host_computer
+	print("")//spider/spiderweb here
+	print("Welcome to weaver "+uname)
+	print("Current version: <b>1.0</b>"+char(10))
+	while exit2 == false
+		if sid != null then
+			sd = "(ses '<b>"+str(sid)+"</b>')"
+		else
+			sd = ""
+		end if
+		command = user_input("["+uname+"@"+hc.public_ip+" - "+hc.local_ip+"] "+sd+"> ")
+		if command.split(" ")[0] == "help" then
+			if len(command.split(" ")) == 1 then
+				help_text = "Name Arguments Description"
+				for c in commands
+					help_text = help_text + char(10) + c["key"]+" "+c["value"][0]+" 3"
+				end for
+				help_text = format_columns(help_text)
+				help_text = help_text.split(char(10))
+				numdone = 1
+				for i in commands
+					help_text[numdone] = help_text[numdone].replace("3",i["value"][1])
+					numdone = numdone + 1
+				end for
+				help_text = help_text.join(char(10))
+				print(help_text)
+			else
+				ch = command.split(" ")[1]
+				if commands.indexes().indexOf(ch) != null then
+					help_text = "Name: 1\nDescription: 1\nUsage: 1\n"
+					help_text = format_columns(help_text)
+					help_text = help_text.split(char(10))
+					help_text[0] = help_text[0].replace("1",ch)
+					help_text[1] = help_text[1].replace("1",commands[ch][-1])
+					help_text[2] = help_text[2].replace("1",commands[ch][-2])
+					help_text = help_text.join(char(10))
+					print(help_text)
+				else
+					print("Error: Command '"+ch+"' not found!\n")
+				end if
+			end if
+		else if command.split(" ")[0] == "sessions" then
+			if len(command.split(" ")) > 1 then
+				if command.split(" ")[1] == "-i" then
+					print()
+					f = metaxploit.rshell_server
+					if f.len == 0 then
+						print("No sessions online!")
+					else
+						if f.len >= command.split(" ")[2].to_int then
+							current_shell = f[command.split(" ")[2].to_int]
+							sid = command.split(" ")[2]
+							print("Session with ID '<b>"+command.split(" ")[2]+"</b>' selected!")
+						else
+							print("No session with that ID found")
+						end if
+					end if
+				else if command.split(" ")[1] == "-d" then
+					if current_shell then
+						print("Disabling interaction with current session")
+						current_shell = null
+						sid = null
+					else
+						print("No session currently selected")
+					end if
+				end if
+			else
+				print()
+				f = metaxploit.rshell_server
+				if f.len == 0 then
+					print("No sessions online!")
+				else
+					if f.len > 1 then
+						s = "s"
+					else
+						s = ""
+					end if
+					print(f.len + " session"+s+" connected!")
+					for i in range(0, f.len - 1)
+						print("\n<b>Session (" + (i) + ")</b>\nPublic IP: " + 
+						f[i].host_computer.public_ip + "\nLocal IP: " + 
+						f[i].host_computer.local_ip)
+					end for
+					print("\nUse sessions -i [sessionid] to interact with a session!")
+				end if
+			end if
+		else if command.split(" ")[0] == "ses" then
+			if command.indexOf("-t") != null then
+				if current_shell then
+					print("Opening terminal to session <b>("+sid+")</b>!")
+					current_shell.start_terminal
+				else
+					print("No session currently selected")
+				end if
+			else
+				if current_shell then
+					print("Session <b>("+sid+")</b> currently selected\nPublic IP: " + 
+					current_shell.host_computer.public_ip + "\nLocal IP: " + 
+					current_shell.host_computer.local_ip)
+				else
+					print("No session currently selected")
+				end if
+			end if
+		else if command.split(" ")[0] == "clearlogs" then
+			if current_shell then
+				logs = current_shell.host_computer.File("/var/system.log")
+				if not logs.has_permission("w") then
+					print("clearlogs is unable to continue - unable to re-write logs")
+				else
+					logs.set_content("Weaver was here")
+					print("Set logs content")
+				end if
+			else
+				print("No session currently selected")
+			end if
+		else if command.split(" ")[0] == "ssh" then
+			command = command.split(" ")
+			if command.indexOf("-ip") != null then
+				ip = command[v_to_num(command,"-ip")+1]
+				if command.indexOf("-u") != null then
+					user = command[v_to_num(command,"-u")+1]
+					if command.indexOf("-pw") != null then
+						passw = command[v_to_num(command,"-pw")+1]
+						if command.indexOf("-p") != null then
+							port = command[v_to_num(command,"-p")+1].to_int
+						else
+							port = 22
+						end if
+						tmp_s = get_shell.connect_service(ip,port,user,passw)
+						if typeof(tmp_s) != "shell" then
+							print("Unable to connect to specified device")
+						else
+							current_shell = tmp_s
+							sid = "Cutsom"
+						end if
+					else
+						print("ssh unable to continue - No password given")
+					end if
+				else
+					print("ssh unable to continue - No username given")
+				end if
+			else
+				print("ssh unable to continue - No ip given")
+			end if
+		else if command.split(" ")[0] == "brick" then
+			if current_shell then
+				print("Attempting to brick current session...")
+				print("Deleting /bin folder")
+				brick(current_shell.host_computer.File("/bin"))
+				print("Deleting /usr/bin folder")
+				brick(current_shell.host_computer.File("/usr/bin"))
+				print("Deleting /lib folder")
+				brick(current_shell.host_computer.File("/lib"))
+				print("Deleting /boot folder")
+				brick(current_shell.host_computer.File("/boot"))
+				print("Deleting / folder")
+				brick(current_shell.host_computer.File("/"))
+				print("Finished brick attempt")
+			else
+				print("No session currently selected")
+			end if
+		else if command.split(" ")[0] == "persist" then
+			if current_shell then
+				command = command.split(" ")
+				if command.indexOf("-f") != null then
+					r = command[v_to_num(command,"-f")+1]
+					r_f = hc.File(r)
+					if not r_f then
+						print("persist is unable to continue - unable to find specified file")
+					else
+						if not r_f.has_permission("r") then
+							print("persist is unable to continue - unable to read specified file")
+						else
+							print("Copying local file...")
+							r_f = r_f.get_content()
+							rs_users = current_shell.host_computer.File("/home").get_folders
+							rs_users = rs_users[0].path
+							current_shell.host_computer.touch(rs_users,"t.src")
+							rs_f = current_shell.host_computer.File(rs_users+"/t.src")
+							rs_f.set_content(r_f)
+							if not current_shell.host_computer.File("/etc/init.d") then current_shell.host_computer.create_folder("/etc","init.d")
+							print("Building file...")
+							f = current_shell.build(rs_users+"/t.src","/etc/init.d")
+							rs_f.delete()
+							print(f)
+							print("Renaming file...")
+							rs_f = current_shell.host_computer.File("/etc/init.d/t")
+							print(rs_f)
+							rs_f.copy("/etc/init.d",".t")
+							rs_f.delete()
+							print("Sucess, persistence added")
+						end if
+					end if
+				else
+					print("persist is unable to continue - no file specified")
+				end if
+			else
+				print("No session currently selected")
+			end if
+		else if command.split(" ")[0] == "generate" then
+			command = command.split(" ")
+			if command.indexOf("-t") != null then
+				template_name = command[v_to_num(command,"-t")+1]
+				templates_folder = hc.File(home_dir+"/Weaver/templates")
+				template_file = hc.File(home_dir+"/Weaver/templates/"+template_name+".wt")
+				if not template_file then
+					print("Template with name '"+template_name+"' is not in your templates folder!")
+				else
+					print("Template '<b>"+template_name+"</b>' selected...")
+					if command.indexOf("-pn") != null then
+						process_name = command[v_to_num(command,"-pn")+1]
+						print("Process name set to '<b>"+process_name+"</b>'...")
+						if command.indexOf("-ip") != null then
+							ip = command[v_to_num(command,"-ip")+1]
+							print("IP set to '<b>"+ip+"</b>'...")
+						else
+							ip = hc.public_ip
+							print("IP defaulted to '<b>"+ip+"</b>'...")
+						end if
+						if command.indexOf("-p") != null then
+							port = command[v_to_num(command,"-p")+1]
+							print("Port set to '<b>"+port+"</b>'...")
+						else
+							port = "1222"
+							print("Port defaulted to '<b>"+port+"</b>'...")
+						end if
+						if command.indexOf("-o") != null then
+							output_name = command[v_to_num(command,"-o")+1]
+							print("Output name set to '<b>"+output_name+"</b>'...")
+						else
+							output_name = template_name+".rshell"
+							print("Output name defaulted to '<b>"+output_name+"</b>'...")
+						end if
+						rs = template_file.get_content()
+						rs = rs.replace("*IP*",ip).replace("*P*",port).replace("*PN*",process_name)
+						output_file = hc.File(home_dir+"/Weaver/output/"+output_name)
+						overwrite = true
+						if output_file then
+							overwrite = user_input("\nA file was detected at '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'"+ char(10)+ char(10)+"Do you with to overwrite it [y/N] :    ")
+							if overwrite.indexOf("Y") != null or overwrite.indexOf("y") != null then
+								print("\nOverwriting...")
+							else
+								print("\nCancelled due to overwrite!")
+								overwrite = false
+							end if
+						end if
+						if overwrite then
+							hc.touch(home_dir+"/Weaver/output",output_name+".src")
+							output_file = hc.File(home_dir+"/Weaver/output/"+output_name+".src")
+							output_file.set_content(rs)
+							f = hc.File(home_dir+"/Weaver/output/"+output_name)
+							if f then f.delete()
+							get_shell.build(home_dir+"/Weaver/output/"+output_name+".src",home_dir+"/Weaver/output/",false)
+							print("Successfully saved rshell to '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'")
+							output_file.delete()
+						end if
+					else
+						print("No process name specified, unable to continue!")
+					end if
+				end if
+			else
+				print("No template specified, unable to continue!")
+			end if
+		else if command.split(" ")[0] == "templates" then
+			templates = hc.File(home_dir+"/Weaver/templates").get_files()
+			if templates.len > 1 then
+				s = "s"
+			else
+				s = ""
+			end if
+			print("Found '<b>"+str(templates.len)+"</b>' template"+s+":")
+			for t in templates
+				print(t.name.replace(".wt",""))
+			end for
+		else if command.split(" ")[0] == "steal" then
+			if current_shell then
+				s = [false,false,false,false]
+				c = command.split(" ")
+				if c.indexOf("-u") != null then s[0] = true
+				if c.indexOf("-b") != null then s[1] = true
+				if c.indexOf("-m") != null then s[2] = true
+				if c.indexOf("-d") != null then s[3] = true
+				if s[3] then print("Decipher mode enabled")
+				if s.indexOf(true) != null then
+					pw = {"Users": [], "Bank": [], "Mail": []}
+					if s[0] then
+						print("Stealing user passwords\n")
+						cf = current_shell.host_computer.File("/etc/passwd")
+						if not cf.has_permission("r") then
+							print("Unable to steal user passwords, no read privellege\n")
+						else
+							p = cf.get_content()
+							p = p.split(char(10))
+							t = []
+							for u in p
+								if u.indexOf(":") != null then t.push(u)
+							end for
+							p = t
+							print("Found user passwords: "+str(p.len))
+							for u in p
+								print(u)
+								pw["Users"].push(u)
+							end for
+							print()
+						end if
+					end if
+					if s[1] then
+						print("Stealing bank passwords\n")
+						ul = current_shell.host_computer.File("/home")
+						if not ul.has_permission("r") then
+							print("Unable to steal bank passwords, no home read privellege\n")
+						else
+							for user in ul.get_folders()
+								if not user.has_permission("r") then
+									print("Unable to steal bank passwords from '"+user.name+"', no user read privellege\n")
+								else
+									for tmp in user.get_folders()
+										if tmp.name != "Config" then continue
+										for file in tmp.get_files()
+											if file.name != "Bank.txt" then continue
+											if not file.has_permission("r") then
+												print("Unable to steal bank passwords from '"+user.name+"', no Bank.txt read privellege\n")
+											else
+												b = file.get_content
+												b = b.split(char(10))
+												t = []
+												for u in b
+													if u.indexOf(":") != null then t.push(u)
+												end for
+												b = t
+												print("Found bank passwords of '"+user.name+"': "+str(b.len))
+												for u in b
+													print(u)
+													pw["Bank"].push(u)
+												end for
+												print()
+											end if
+										end for
+									end for
+								end if
+							end for
+						end if
+					end if
+					if s[2] then
+						print("Seatling mail passwords\n")
+						ul = current_shell.host_computer.File("/home")
+						if not ul.has_permission("r") then
+							print("Unable to steal mail passwords, no home read privellege\n")
+						else
+							for user in ul.get_folders()
+								if not user.has_permission("r") then
+									print("Unable to steal mail passwords from '"+user.name+"', no user read privellege\n")
+								else
+									for tmp in user.get_folders()
+										if tmp.name != "Config" then continue
+										for file in tmp.get_files()
+											if file.name != "Mail.txt" then continue
+											if not file.has_permission("r") then
+												print("Unable to steal mail passwords from '"+user.name+"', no Mail.txt read privellege\n")
+											else
+												b = file.get_content
+												b = b.split(char(10))
+												t = []
+												for u in b
+													if u.indexOf(":") != null then t.push(u)
+												end for
+												b = t
+												print("Found mail passwords of user '"+user.name+"': "+str(b.len))
+												for u in b
+													print(u)
+													pw["Mail"].push(u)
+												end for
+												print()
+											end if
+										end for
+									end for
+								end if
+							end for
+						end if
+					end if
+					if s[3] then
+						if s[0] then
+							print("Deciphering user passwords\n")
+							for u in range(0,pw["Users"].len-1)
+								pp = pw["Users"][u].split(":")
+								p = crypto.decipher(pp[1])
+								pw["Users"][u] = pp[0]+":"+p
+							end for
+							for u in pw["Users"]
+								print((u.split(":")).join(" : "))
+							end for
+							print()
+						end if
+						if s[1] then
+							print("Deciphering bank passwords\n")
+							for u in range(0,pw["Bank"].len-1)
+								pp = pw["Bank"][u].split(":")
+								p = crypto.decipher(pp[1])
+								pw["Bank"][u] = pp[0]+":"+p
+							end for
+							for u in pw["Bank"]
+								print((u.split(":")).join(" : "))
+							end for
+							print()
+						end if
+						if s[2] then
+							print("Deciphering mail passwords\n")
+							for u in range(0,pw["Mail"].len-1)
+								pp = pw["Mail"][u].split(":")
+								p = crypto.decipher(pp[1])
+								pw["Mail"][u] = pp[0]+":"+p
+							end for
+							for u in pw["Mail"]
+								print((u.split(":")).join(" : "))
+							end for
+						end if
+					end if
+				else
+					print("Stealer is unable to continue - nothing specified")
+				end if
+			else
+				print("No session currently selected")
+			end if
+		else if command.split(" ")[0] == "procs" then
+			if current_shell then
+				print("Current processes of session <b>("+sid+")</b>"+char(10))
+				print(format_columns(current_shell.host_computer.show_procs))
+			else
+				print("No session currently selected")
+			end if
+		else if command.split(" ")[0] == "decipher" then
+			c = command.split(" ")
+			if c.len < 2 then
+				print("Decipher stopped - Invalid usage")
+			else
+				if c.indexOf("-f") != null then
+					fpath = c[v_to_num(c,"-f")+1]
+					f = hc.File(fpath)
+					if not f then
+						print("Decipher stopped - Invalid path")
+					else
+						if not f.has_permission("r") != null then
+							print("Decipher stopped - Can't read file")
+						else
+							content = f.get_content()
+							content = content.split(char(10))
+							if content[0].indexOf(":") != null then
+								print("Deciphering file in password mode: "+f.name)
+								for u in range(0,content.len-1)
+									pp = content[u].split(":")
+									p = crypto.decipher(pp[1])
+									content[u] = pp[0]+":"+p
+								end for
+								for u in content
+									print((u.split(":")).join(" : "))
+								end for
+							else
+								print("Deciphering file in string mode: "+f.name)
+								for u in range(0,content.len-1)
+									content[u] = crypto.decipher(content[u])
+								end for
+								for u in content
+									print(u)
+								end for
+							end if
+						end if
+					end if
+				else
+					print("Deciphering string: "+c[1])
+					content = crypto.decipher(c[1])
+					print("Deciphered string: "+content)
+				end if
+			end if
+		else if command.split(" ")[0] == "clear" then
+			clear_screen()
+		else if command.split(" ")[0] == "exit" then 
+			exit2 = true
+		else
+			print("Error: Command '"+command.split(" ")[0]+"' not found!")
+		end if
+	end while
+end function
+
+check_setup()
+exit("\nThanks for using Weaver!\n")
