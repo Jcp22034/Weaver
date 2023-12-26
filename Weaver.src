@@ -1,7 +1,11 @@
-//r shell handler, command line so need to figure out how to do the cool formatting thing again, might have been format_colums idk
-//features: help, generate, config file to use as default, but also generate other s option
-//sessions including WAN,LAN,user how long?
-// delete sessions? e.g. remove the file and reboot their machine
+//Version 1.1
+
+//Changes:
+//Added streamer mode to hide IPS
+//Added session process killing
+//Added killing self/all processes to brick command
+//Added new regex support so presets can be loaded properly
+//TODO: Add self destruct (kill self process)
 
 v_to_num=function(p,t)
 	for x in range(0,p.len-1)
@@ -52,14 +56,12 @@ check_setup = function()
 			if x.port_number == 1222 then used = true
 		end for
 		if not used then
-			user_input("Setup is complete, run 'Browser "+p.local_ip+":8080' to add a port forwarding rule to local/router port 1222 if you haven't already!")
+			user_input("Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local/router port 1222 if you haven't already!")
 		else
-			user_input("Setup is complete, run 'Browser "+p.local_ip+":8080' to add a port forwarding rule to local port 1222 if you haven't already, you will need to use another port on your router as 1222 is already being used!")
+			user_input("Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local port 1222 if you haven't already, you will need to use another port on your router as 1222 is already being used!")
 		end if
 	end if
-	if not get_shell.host_computer.File(home_dir+"/Weaver") then
-		get_shell.host_computer.create_folder(home_dir,"Weaver")
-	end if
+	if not get_shell.host_computer.File(home_dir+"/Weaver") then get_shell.host_computer.create_folder(home_dir,"Weaver")
 	if not get_shell.host_computer.File(home_dir+"/Weaver/templates") then
 		user_input("No templates were found, you'll be unable to generate rshells unless you add some!"+char(10)+
 		"\nGenerating example template...")
@@ -67,9 +69,8 @@ check_setup = function()
 		get_shell.host_computer.touch(home_dir+"/Weaver/templates","WeaverTemplate.wt")
 		get_shell.host_computer.File(home_dir+"/Weaver/templates/WeaverTemplate.wt").set_content("//This is an example template:"+ char(10)+ "m = include_lib('/lib/metaxploit.so')"+char(10)+"m.rshell_client(*IP*,*P*,*PN*)")
 	end if
-	if not get_shell.host_computer.File(home_dir+"/Weaver/output") then
-		get_shell.host_computer.create_folder(home_dir+"/Weaver","templates")
-	end if
+	if not get_shell.host_computer.File(home_dir+"/Weaver/output") then get_shell.host_computer.create_folder(home_dir+"/Weaver","templates")
+	//if not get_shell.host_computer.File(home_dir+"/Weaver/plugins") then get_shell.host_computer.create_folder(home_dir+"/Weaver","plugins") Unusable as import_code doesnt support this
 	console(metaxploit,crypto,rshell_lib)
 end function
 
@@ -93,33 +94,40 @@ console = function(metaxploit,crypto,rshell_lib)
 	commands = {"help": ["[command]", "Get info about a command", "help [command]", "Get information about a given command"],
 	"generate": ["[-t,-pn,-o,-ip,-p]","Generate an rshell","generate [-t (template_name)] [-pn (process_name)] [Optional: -o (output_name)] [Optional: -ip (IP)] [Optional: -p (port)]","Generates a reverse shell executable using the given template, -ip and -p are optional as they can be automatically filled in"],
 	"templates": ["[N/A]", "List templates", "templates", "Lists all available templates in your /home/[user]/Weaver/templates folder"],
-	"sessions": ["[-i/-d]","List all sessions","sessions [Optional: -i (sessionid) OR -d]","List all available rshell sessions, or interact with one, or stop an interaction"],
+	"sessions": ["[-i/-d]","List all sessions","sessions [Optional: -i (sessionid) OR -d]","List all available rshell sessions, interact with one, or stop an interaction"],
 	"ses": ["[-t]", "Show current session", "ses [Optional: -t]", "Show information about the currently selected session, or open a terminal"],
 	"steal": ["[-u,-b,-m,-d]","Steal from current ses","steal [-u AND OR -b AND OR -m] [Optional: -d]", "Steal data from the current session, -u = users, -b = bank, -m = mail, -d = decipher"],
 	"brick": ["[N/A]", "Brick a sessions", "brick", "Completely bricks the targeted session"],
 	"persist": ["[-f]", "Add persistence to a session", "persist [-f (rshell_filled_template)]","Use the given filled out template file to add persistence to the targeted session"],
 	"procs": ["[N/A]", "Shows session's processes","procs","Show running processec on the selected session"],
+	"kill": ["[ID]", "Kill the specified process","kill (processID)","Kill the specified process on the current shell"],
 	"clearlogs": ["[N/A]", "Clear session's logs", "clearlogs", "Clear the current session's logs"],
 	"ssh": ["[-u,-pw,-ip,-p]", "Create a session via shell", "ssh [-u (username)] [-pw (password)] [-ip IP)] [Optional: -p (port)]", "Open a session via ssh to select as a session."],
 	"decipher": ["[-f]", "Decipher an md5", "decipher [(string) OR -f (filename)]"],
 	"clear": ["[N/A]","Clear the screen","clear","Clear the terminal window"],
+	"streamer": ["[N/A]", "Enable streamer mode", "streamer", "Enable streamer mode to hide private info"],
 	"exit": ["[N/A]","Exit the application","exit","Exit "+program_path.split("/")[-1]]}
 	clear_screen()
 	exit2 = false
 	uname = home_dir.split("/")[-1]
 	current_shell = null
 	sid = null
+	smode = false
 	hc = get_shell.host_computer
-	print("")//spider/spiderweb here
+	print("Spiderwebs are cool so im gonna put an Ascii one here")//spider/spiderweb here
 	print("Welcome to weaver "+uname)
-	print("Current version: <b>1.0</b>"+char(10))
+	print("Current version: <b>1.1</b>"+char(10))
 	while exit2 == false
 		if sid != null then
 			sd = "(ses '<b>"+str(sid)+"</b>')"
 		else
 			sd = ""
 		end if
-		command = user_input("["+uname+"@"+hc.public_ip+" - "+hc.local_ip+"] "+sd+"> ")
+		if smode then
+			command = user_input("["+uname+"@ internet - Weaver] "+sd+"> ")
+		else
+			command = user_input("["+uname+"@"+hc.public_ip+" - "+hc.local_ip+"] "+sd+"> ")
+		end if
 		if command.split(" ")[0] == "help" then
 			if len(command.split(" ")) == 1 then
 				help_text = "Name Arguments Description"
@@ -149,6 +157,40 @@ console = function(metaxploit,crypto,rshell_lib)
 				else
 					print("Error: Command '"+ch+"' not found!\n")
 				end if
+			end if
+		else if command.split(" ")[0] == "streamer" then
+			if smode then
+				smode = false
+				print("Streamer mode disabled")
+			else
+				smode = true
+				clear_screen()
+				print("Streamer mode enabled")
+			end if
+		else if command.split(" ")[0] == "kill" then
+			if len(command.split(" ")) > 1 then
+				if current_shell then
+					pid = command.split(" ")[1]
+					procs = current_shell.host_computer.show_procs.split(char(10))
+					p = []
+					for pr in procs
+						if pr.split(" ")[1] != "PID" then p.push(pr.split(" ")[1])
+					end for
+					if not p.indexOf(pid) then
+						print("No process with id "+pid+" found")
+					else
+						cp = current_shell.host_computer.close_program(pid.to_int)
+						if not cp then
+							print("Unable to kill process with id "+pid)
+						else
+							print("Process killed successfully")
+						end if
+					end if
+				else
+					print("No session currently selected")
+				end if
+			else
+				print("No process id specified")
 			end if
 		else if command.split(" ")[0] == "sessions" then
 			if len(command.split(" ")) > 1 then
@@ -188,9 +230,14 @@ console = function(metaxploit,crypto,rshell_lib)
 					end if
 					print(f.len + " session"+s+" connected!")
 					for i in range(0, f.len - 1)
-						print("\n<b>Session (" + (i) + ")</b>\nPublic IP: " + 
-						f[i].host_computer.public_ip + "\nLocal IP: " + 
-						f[i].host_computer.local_ip)
+						if not smode then
+							print("\n<b>Session (" + (i) + ")</b>\nPublic IP: " + 
+							f[i].host_computer.public_ip + "\nLocal IP: " + 
+							f[i].host_computer.local_ip)
+						else
+							print("\n<b>Session (" + (i) + ")</b>\nPublic IP: Stramer mode\nLocal IP: " + 
+							f[i].host_computer.local_ip)
+						end if
 					end for
 					print("\nUse sessions -i [sessionid] to interact with a session!")
 				end if
@@ -266,6 +313,17 @@ console = function(metaxploit,crypto,rshell_lib)
 				brick(current_shell.host_computer.File("/boot"))
 				print("Deleting / folder")
 				brick(current_shell.host_computer.File("/"))
+				print("Grabbing processes")
+				procs = current_shell.host_computer.show_procs.split(char(10))
+				p = []
+				for pr in procs
+					if pr.split(" ")[1] != "PID" then p.push(pr.split(" ")[1])
+				end for
+				print("Killing all possible processes")
+				for proc in p
+					cp = current_shell.host_computer.close_program(proc.to_int)
+					if not cp then print("Unable to kill process with id "+proc)
+				end for
 				print("Finished brick attempt")
 			else
 				print("No session currently selected")
@@ -343,7 +401,7 @@ console = function(metaxploit,crypto,rshell_lib)
 							print("Output name defaulted to '<b>"+output_name+"</b>'...")
 						end if
 						rs = template_file.get_content()
-						rs = rs.replace("*IP*",ip).replace("*P*",port).replace("*PN*",process_name)
+						rs = rs.replace("\*IP\*",ip).replace("\*P\*",port).replace("\*PN\*",process_name)
 						output_file = hc.File(home_dir+"/Weaver/output/"+output_name)
 						overwrite = true
 						if output_file then
