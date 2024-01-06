@@ -2,21 +2,36 @@
 A reverse shell handler for the game GreyHack
 
 
-# Current Version - 1.1
+# Current Version - 1.2
 
 
 # Changes since last version
-Added streamer mode to hide IPS
+Wait time after generating default template
 
-Added session process killing
+Fixed spelling mistake on streamer mode
 
-Added killing self/all processes to brick command
+Added clearer enter terminal message
 
-Added new regex support so presets can be loaded properly
+Fixed sessions -i without session ID crashing the program
 
+Added hash database, if a hash has already been deciphered then it is shown
+
+Added password/account decipher to the decipher command
+
+Added hashes command to show how many hashes are in the database
+
+Added about opening terminal to ses short description
+
+Added upload and download commands
+
+
+# Notes
+When an invalid/unbuildable script is passed to persist/generate, it will be unabkle to build them
+
+Brick command cannot be run more than once on a session
 
 # TODO
-Add self destruct (kill self process)
+User suggestions!
 
 
 # Requirements
