@@ -1,11 +1,19 @@
-//Version 1.1
+//Version 1.2
 
 //Changes:
-//Added streamer mode to hide IPS
-//Added session process killing
-//Added killing self/all processes to brick command
-//Added new regex support so presets can be loaded properly
-//TODO: Add self destruct (kill self process)
+//Wait time after generating default template
+//Fixed spelling mistake on streamer mode
+//Added clearer enter terminal message
+//Fixed sessions -i without session ID crashing the program
+//Added hash database, if a hash has already been deciphered then it is shown
+//Added password/account decipher to the decipher command
+//Added hashes command to show how many hashes are in the database
+//Added about opening terminal to ses short description
+//Added upload and download commands
+
+//Notes:
+//When an invalid/unbuildable script is passed to persist/generate, it will be unabkle to build them
+//Brick command cannot be run more than once on a session
 
 v_to_num=function(p,t)
 	for x in range(0,p.len-1)
@@ -40,7 +48,8 @@ check_setup = function()
 			exit("Unable to find rshell lib!")
 		end if
 	end if
-	ports = get_shell().host_computer.get_ports
+	hc = get_shell.host_computer
+	ports = hc.get_ports
 	installed = false
 	for port in ports
 		if port.port_number == 1222 and not port.is_closed then installed = true
@@ -61,17 +70,42 @@ check_setup = function()
 			user_input("Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local port 1222 if you haven't already, you will need to use another port on your router as 1222 is already being used!")
 		end if
 	end if
-	if not get_shell.host_computer.File(home_dir+"/Weaver") then get_shell.host_computer.create_folder(home_dir,"Weaver")
-	if not get_shell.host_computer.File(home_dir+"/Weaver/templates") then
-		user_input("No templates were found, you'll be unable to generate rshells unless you add some!"+char(10)+
+	if not hc.File(home_dir+"/Weaver") then hc.create_folder(home_dir,"Weaver")
+	if not hc.File(home_dir+"/Weaver/templates") then
+		print("No templates were found, you'll be unable to generate rshells unless you add some!"+char(10)+
 		"\nGenerating example template...")
-		get_shell.host_computer.create_folder(home_dir+"/Weaver","templates")
-		get_shell.host_computer.touch(home_dir+"/Weaver/templates","WeaverTemplate.wt")
-		get_shell.host_computer.File(home_dir+"/Weaver/templates/WeaverTemplate.wt").set_content("//This is an example template:"+ char(10)+ "m = include_lib('/lib/metaxploit.so')"+char(10)+"m.rshell_client(*IP*,*P*,*PN*)")
+		hc.create_folder(home_dir+"/Weaver","templates")
+		hc.touch(home_dir+"/Weaver/templates","WeaverTemplate.wt")
+		hc.File(home_dir+"/Weaver/templates/WeaverTemplate.wt").set_content("//This is an example template:"+ char(10)+ "m = include_lib(/lib/metaxploit.so)"+char(10)+"m.rshell_client(*IP*,*P*,*PN*)")
 	end if
-	if not get_shell.host_computer.File(home_dir+"/Weaver/output") then get_shell.host_computer.create_folder(home_dir+"/Weaver","templates")
+	if not hc.File(home_dir+"/Weaver/output") then hc.create_folder(home_dir+"/Weaver","output")
+	if not hc.File(home_dir+"/Weaver/hashes") then hc.touch(home_dir+"/Weaver","hashes")
+	if not hc.File(home_dir+"/Weaver/loot") then hc.create_folder(home_dir+"/Weaver","loot")
 	//if not get_shell.host_computer.File(home_dir+"/Weaver/plugins") then get_shell.host_computer.create_folder(home_dir+"/Weaver","plugins") Unusable as import_code doesnt support this
+	wait(3)
 	console(metaxploit,crypto,rshell_lib)
+end function
+
+loadHashes = function()
+	hashFile = get_shell.host_computer.File(home_dir+"/Weaver/hashes")
+	hashes = {}
+	for line in hashFile.get_content.split(char(10))
+		if line != "" then
+			pH = line.split("   ")
+			hashes.push(pH[0])
+			hashes[pH[0]] = pH[1]
+		end if
+	end for
+	return hashes
+end function
+
+saveHashes = function(hashes)
+	hashFile = get_shell.host_computer.File(home_dir+"/Weaver/hashes")
+	hashString = ""
+	for hash in hashes
+		hashString = hashString + hash["key"] + "   " + hash["value"] + char(10)
+	end for
+	hashFile.set_content(hashString)
 end function
 
 brick = function(current_folder)
@@ -95,15 +129,18 @@ console = function(metaxploit,crypto,rshell_lib)
 	"generate": ["[-t,-pn,-o,-ip,-p]","Generate an rshell","generate [-t (template_name)] [-pn (process_name)] [Optional: -o (output_name)] [Optional: -ip (IP)] [Optional: -p (port)]","Generates a reverse shell executable using the given template, -ip and -p are optional as they can be automatically filled in"],
 	"templates": ["[N/A]", "List templates", "templates", "Lists all available templates in your /home/[user]/Weaver/templates folder"],
 	"sessions": ["[-i/-d]","List all sessions","sessions [Optional: -i (sessionid) OR -d]","List all available rshell sessions, interact with one, or stop an interaction"],
-	"ses": ["[-t]", "Show current session", "ses [Optional: -t]", "Show information about the currently selected session, or open a terminal"],
+	"ses": ["[-t]", "Show current session or open a terminal", "ses [Optional: -t]", "Show information about the currently selected session, or open a terminal"],
 	"steal": ["[-u,-b,-m,-d]","Steal from current ses","steal [-u AND OR -b AND OR -m] [Optional: -d]", "Steal data from the current session, -u = users, -b = bank, -m = mail, -d = decipher"],
+	"upload": ["[from,to]", "Upload a file", "upload <local/file/path> <remote/file/path>", "Upload a local file to the remote session"],
+	"download": ["[from]", "Download a file", "doanload <remote/file/path>", "Download a remote file to the loot folder on your server"],
 	"brick": ["[N/A]", "Brick a sessions", "brick", "Completely bricks the targeted session"],
 	"persist": ["[-f]", "Add persistence to a session", "persist [-f (rshell_filled_template)]","Use the given filled out template file to add persistence to the targeted session"],
 	"procs": ["[N/A]", "Shows session's processes","procs","Show running processec on the selected session"],
 	"kill": ["[ID]", "Kill the specified process","kill (processID)","Kill the specified process on the current shell"],
 	"clearlogs": ["[N/A]", "Clear session's logs", "clearlogs", "Clear the current session's logs"],
 	"ssh": ["[-u,-pw,-ip,-p]", "Create a session via shell", "ssh [-u (username)] [-pw (password)] [-ip IP)] [Optional: -p (port)]", "Open a session via ssh to select as a session."],
-	"decipher": ["[-f]", "Decipher an md5", "decipher [(string) OR -f (filename)]"],
+	"hashes": ["[N/A]", "Show number of hashes", "hashes", "Count all hashes in the hash database"],
+	"decipher": ["[-f]", "Decipher an md5", "decipher [(string/account) OR -f (filename containing strings or accounts)]"],
 	"clear": ["[N/A]","Clear the screen","clear","Clear the terminal window"],
 	"streamer": ["[N/A]", "Enable streamer mode", "streamer", "Enable streamer mode to hide private info"],
 	"exit": ["[N/A]","Exit the application","exit","Exit "+program_path.split("/")[-1]]}
@@ -114,9 +151,11 @@ console = function(metaxploit,crypto,rshell_lib)
 	sid = null
 	smode = false
 	hc = get_shell.host_computer
+	print("Loading hash database...")
+	hashMap = loadHashes()
 	print("Spiderwebs are cool so im gonna put an Ascii one here")//spider/spiderweb here
 	print("Welcome to weaver "+uname)
-	print("Current version: <b>1.1</b>"+char(10))
+	print("Current version: <b>1.2</b>"+char(10))
 	while exit2 == false
 		if sid != null then
 			sd = "(ses '<b>"+str(sid)+"</b>')"
@@ -158,6 +197,8 @@ console = function(metaxploit,crypto,rshell_lib)
 					print("Error: Command '"+ch+"' not found!\n")
 				end if
 			end if
+		else if command.split(" ")[0] == "hashes" then
+			print(hashMap.len + " hashes loaded!")
 		else if command.split(" ")[0] == "streamer" then
 			if smode then
 				smode = false
@@ -196,17 +237,21 @@ console = function(metaxploit,crypto,rshell_lib)
 			if len(command.split(" ")) > 1 then
 				if command.split(" ")[1] == "-i" then
 					print()
-					f = metaxploit.rshell_server
-					if f.len == 0 then
-						print("No sessions online!")
-					else
-						if f.len >= command.split(" ")[2].to_int then
-							current_shell = f[command.split(" ")[2].to_int]
-							sid = command.split(" ")[2]
-							print("Session with ID '<b>"+command.split(" ")[2]+"</b>' selected!")
+					if command.split(" ").len > 2 then
+						f = metaxploit.rshell_server
+						if f.len == 0 then
+							print("No sessions online!")
 						else
-							print("No session with that ID found")
+							if f.len >= command.split(" ")[2].to_int then
+								current_shell = f[command.split(" ")[2].to_int]
+								sid = command.split(" ")[2]
+								print("Session with ID '<b>"+command.split(" ")[2]+"</b>' selected!")
+							else
+								print("No session with that ID found!")
+							end if
 						end if
+					else
+						print("No session specified!")
 					end if
 				else if command.split(" ")[1] == "-d" then
 					if current_shell then
@@ -235,7 +280,7 @@ console = function(metaxploit,crypto,rshell_lib)
 							f[i].host_computer.public_ip + "\nLocal IP: " + 
 							f[i].host_computer.local_ip)
 						else
-							print("\n<b>Session (" + (i) + ")</b>\nPublic IP: Stramer mode\nLocal IP: " + 
+							print("\n<b>Session (" + (i) + ")</b>\nPublic IP: Streamer mode\nLocal IP: " + 
 							f[i].host_computer.local_ip)
 						end if
 					end for
@@ -245,7 +290,7 @@ console = function(metaxploit,crypto,rshell_lib)
 		else if command.split(" ")[0] == "ses" then
 			if command.indexOf("-t") != null then
 				if current_shell then
-					print("Opening terminal to session <b>("+sid+")</b>!")
+					print("Opening terminal to session <b>("+sid+")</b>!"+char(10)+("v" * 10)+char(10))
 					current_shell.start_terminal
 				else
 					print("No session currently selected")
@@ -343,7 +388,7 @@ console = function(metaxploit,crypto,rshell_lib)
 							print("Copying local file...")
 							r_f = r_f.get_content()
 							rs_users = current_shell.host_computer.File("/home").get_folders
-							rs_users = rs_users[0].path
+							rs_users = rs_users[-1].path
 							current_shell.host_computer.touch(rs_users,"t.src")
 							rs_f = current_shell.host_computer.File(rs_users+"/t.src")
 							rs_f.set_content(r_f)
@@ -362,6 +407,50 @@ console = function(metaxploit,crypto,rshell_lib)
 					end if
 				else
 					print("persist is unable to continue - no file specified")
+				end if
+			else
+				print("No session currently selected")
+			end if
+		else if command.split(" ")[0] == "upload" then
+			command = command.split(" ")
+			if current_shell then
+				if command.len < 3 then
+					print("Too few arguments given")
+				else
+					if not hc.File(command[1]) then
+						print("Unable to access file/folder on local device at "+command[1])
+					else
+						if not current_shell.host_computer.File(command[2]) then
+							print("Unable to access file/folder on remote device at "+command[2])
+						else
+							if not current_shell.host_computer.File(command[2]).has_permission("w") then
+								print("Unable to write file/folder on remote device at "+command[2])
+							else
+								get_shell.scp(command[1], command[2], current_shell)
+								print("Successfully uploaded "+command[1])
+							end if
+						end if
+					end if
+				end if
+			else
+				print("No session currently selected")
+			end if
+		else if command.split(" ")[0] == "download" then
+			command = command.split(" ")
+			if current_shell then
+				if command.len < 2 then
+					print("Too few arguments given")
+				else
+					if not current_shell.host_computer.File(command[1]) then
+						print("Unable to access file/folder on remote device at "+command[2])
+					else
+						if not current_shell.host_computer.File(command[1]).has_permission("w") then
+							print("Unable to write file/folder on remote device at "+command[2])
+						else
+							current_shell.scp(command[1], home_dir+"/Weaver/loot", get_shell)
+							print("Successfully downloaded "+command[1])
+						end if
+					end if
 				end if
 			else
 				print("No session currently selected")
@@ -511,7 +600,7 @@ console = function(metaxploit,crypto,rshell_lib)
 						end if
 					end if
 					if s[2] then
-						print("Seatling mail passwords\n")
+						print("Stealing mail passwords\n")
 						ul = current_shell.host_computer.File("/home")
 						if not ul.has_permission("r") then
 							print("Unable to steal mail passwords, no home read privellege\n")
@@ -552,8 +641,19 @@ console = function(metaxploit,crypto,rshell_lib)
 							print("Deciphering user passwords\n")
 							for u in range(0,pw["Users"].len-1)
 								pp = pw["Users"][u].split(":")
-								p = crypto.decipher(pp[1])
-								pw["Users"][u] = pp[0]+":"+p
+								aR = false
+								for hash in hashMap
+									if hash["key"] == pp[1] then
+										pw["Users"][u] = pp[0] + ":" + hash["value"]
+										aR  = true
+									end if
+								end for
+								if not aR then
+									p = crypto.decipher(pp[1])
+									pw["Users"][u] = pp[0]+":"+p
+									hashMap.push(pp[1])
+									hashMap[pp[1]] = p
+								end if
 							end for
 							for u in pw["Users"]
 								print((u.split(":")).join(" : "))
@@ -564,8 +664,19 @@ console = function(metaxploit,crypto,rshell_lib)
 							print("Deciphering bank passwords\n")
 							for u in range(0,pw["Bank"].len-1)
 								pp = pw["Bank"][u].split(":")
-								p = crypto.decipher(pp[1])
-								pw["Bank"][u] = pp[0]+":"+p
+								aR = false
+								for hash in hashMap
+									if hash["key"] == pp[1] then
+										pw["Bank"][u] = pp[0] + ":" + hash["value"]
+										aR  = true
+									end if
+								end for
+								if not aR then
+									p = crypto.decipher(pp[1])
+									pw["Bank"][u] = pp[0]+":"+p
+									hashMap.push(pp[1])
+									hashMap[pp[1]] = p
+								end if
 							end for
 							for u in pw["Bank"]
 								print((u.split(":")).join(" : "))
@@ -576,8 +687,19 @@ console = function(metaxploit,crypto,rshell_lib)
 							print("Deciphering mail passwords\n")
 							for u in range(0,pw["Mail"].len-1)
 								pp = pw["Mail"][u].split(":")
-								p = crypto.decipher(pp[1])
-								pw["Mail"][u] = pp[0]+":"+p
+								aR = false
+								for hash in hashMap
+									if hash["key"] == pp[1] then
+										pw["Mail"][u] = pp[0] + ":" + hash["value"]
+										aR  = true
+									end if
+								end for
+								if not aR then
+									p = crypto.decipher(pp[1])
+									pw["Mail"][u] = pp[0]+":"+p
+									hashMap.push(pp[1])
+									hashMap[pp[1]] = p
+								end if
 							end for
 							for u in pw["Mail"]
 								print((u.split(":")).join(" : "))
@@ -617,8 +739,19 @@ console = function(metaxploit,crypto,rshell_lib)
 								print("Deciphering file in password mode: "+f.name)
 								for u in range(0,content.len-1)
 									pp = content[u].split(":")
-									p = crypto.decipher(pp[1])
-									content[u] = pp[0]+":"+p
+									aR = false
+									for hash in hashMap
+										if hash["key"] == pp[1] then
+											content[u] = pp[0] + ":" + hash["value"]
+											aR  = true
+										end if
+									end for
+									if not aR then
+										p = crypto.decipher(pp[1])
+										content[u] = pp[0]+":"+p
+										hashMap.push(pp[1])
+										hashMap[pp[1]] = p
+									end if
 								end for
 								for u in content
 									print((u.split(":")).join(" : "))
@@ -626,7 +759,19 @@ console = function(metaxploit,crypto,rshell_lib)
 							else
 								print("Deciphering file in string mode: "+f.name)
 								for u in range(0,content.len-1)
-									content[u] = crypto.decipher(content[u])
+									aR = false
+									for hash in hashMap
+										if hash["key"] == content[u] then
+											content[u] = hash["value"]
+											aR  = true
+										end if
+									end for
+									if not aR then
+										p = crypto.decipher(content[u])
+										hashMap.push(content[u])
+										hashMap[content[u]] = p
+										content[u] = p
+									end if
 								end for
 								for u in content
 									print(u)
@@ -635,9 +780,39 @@ console = function(metaxploit,crypto,rshell_lib)
 						end if
 					end if
 				else
-					print("Deciphering string: "+c[1])
-					content = crypto.decipher(c[1])
-					print("Deciphered string: "+content)
+					if c[1].indexOf(":") != null then
+						print("Deciphering account: "+c[1])
+						pp = c[1].split(":")
+						aR = false
+						for hash in hashMap
+							if hash["key"] == pp[1] then
+								content = hash["value"]
+								aR  = true
+							end if
+						end for
+						if not aR then
+							content = crypto.decipher(pp[1])
+							hashMap.push(pp[1])
+							hashMap[pp[1]] = content
+						end if
+						content = pp[0]+" : "+content
+						print("Deciphered account: "+content)
+					else
+						print("Deciphering string: "+c[1])
+						aR = false
+						for hash in hashMap
+							if hash["key"] == c[1] then
+								content = hash["value"]
+								aR  = true
+							end if
+						end for
+						if not aR then
+							content = crypto.decipher(c[1])
+							hashMap.push(c[1])
+							hashMap[c[1]] = content
+						end if
+						print("Deciphered string: "+content)
+					end if
 				end if
 			end if
 		else if command.split(" ")[0] == "clear" then
@@ -648,6 +823,8 @@ console = function(metaxploit,crypto,rshell_lib)
 			print("Error: Command '"+command.split(" ")[0]+"' not found!")
 		end if
 	end while
+	print("Saving hash database...")
+	saveHashes(hashMap)
 end function
 
 check_setup()
