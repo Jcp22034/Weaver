@@ -152,7 +152,7 @@ console = function(metaxploit,crypto,rshell_lib)
 	print "Spiderwebs are cool so im gonna put an Ascii one here"//spider/spiderweb here
 	print "-----                                                "
 	print "Welcome to weaver "+uname
-	print "Current version: <b>1.2</b>"+char(10)
+	print "Current version: <b>1.3</b>"+char(10)
 	while exit2 == false
 		if sid != null then
 			sd = "(ses '<b>"+str(sid)+"</b>')"
