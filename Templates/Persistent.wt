@@ -1,0 +1,5 @@
+m = get_shell.host_computer.File("/lib/metaxploit.so")
+if m then
+	m = include_lib("/lib/metaxploit.so")
+	m.rshell_client("*IP*",*P*,"*PN*")
+end if

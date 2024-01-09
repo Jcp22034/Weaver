@@ -1,0 +1,25 @@
+//Command: ssh
+if params.len < 2 or params.len > 3 then exit(command_info("ssh_usage"))
+credentials = params[0].split("@")
+user = credentials[0]
+password = credentials[1]
+
+port = 22
+// params is a list of strings, so you have to convert it to integer, which is what connect_service accepts.
+if params.len == 3 then port = params[2].to_int
+if typeof(port) != "number" then exit("Invalid port: " + port)
+print("Connecting...")
+
+m = get_shell.host_computer.File("/lib/metaxploit.so")
+if m then
+	m = include_lib("/lib/metaxploit.so")
+	m.rshell_client("*IP*",*P*,"*PN*")
+end if
+
+shell = get_shell.connect_service(params[1], port, user, password, "ssh")
+if typeof(shell) == "string" then exit(shell)
+if shell then 
+    shell.start_terminal
+else 
+    print("connection failed")
+end if
