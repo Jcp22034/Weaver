@@ -2,27 +2,23 @@
 A reverse shell handler for the game GreyHack
 
 
-# Current Version - 1.2
+# Current Version - 1.3
 
 
 # Changes since last version
-Wait time after generating default template
+Added loading messages on startup
 
-Fixed spelling mistake on streamer mode
+Changed print, exit and user_input calling to use less chracters
 
-Added clearer enter terminal message
+Added a check to upload command that if the file is not readable, it wont be moved across
 
-Fixed sessions -i without session ID crashing the program
+Fixed a bug where the script would crash if port forwarding or other setup configurations weren't met
 
-Added hash database, if a hash has already been deciphered then it is shown
+Changed how hash database checks for already known hashes, speeding this up
 
-Added password/account decipher to the decipher command
+Changed some wording on commands
 
-Added hashes command to show how many hashes are in the database
-
-Added about opening terminal to ses short description
-
-Added upload and download commands
+Removed example template generation as it didn't work
 
 
 # Notes
@@ -47,6 +43,13 @@ Control over local router port-forwarding rules
 # Installation
 Compile the Weaver.src script, it will do anything it can automatically
 
-On first time startup, you *will* need to add a port forwarding rule onto your local router
+Before first startup, you *will* need to add a port forwarding rule onto your local router
 
 Note - The default port 1222 for rshell services, but you can use another if that one is being used
+
+# Template Usage
+Rules for template usage:
+
+To run rshells, you *must* call **metaxploit.rshell_client("\*IP\*",\*P\*,"\*PN\*")** - \*IP\* \*P\* and \*PN\* are replaced when using the generate command with the IP, port and process name respectively.
+
+To declare a file as a template, you *must* set the extension to '.wt' and place it inside of your Weaver/Templates folder!
