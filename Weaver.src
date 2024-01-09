@@ -1,19 +1,19 @@
-//Version 1.2
+//Version 1.3
 
 //Changes:
-//Wait time after generating default template
-//Fixed spelling mistake on streamer mode
-//Added clearer enter terminal message
-//Fixed sessions -i without session ID crashing the program
-//Added hash database, if a hash has already been deciphered then it is shown
-//Added password/account decipher to the decipher command
-//Added hashes command to show how many hashes are in the database
-//Added about opening terminal to ses short description
-//Added upload and download commands
+//Added loading messages on startup
+//Changed print, exit and user_input calling to use less chracters
+//Added a check to upload command that if the file is not readable, it wont be moved across
+//Fixed a bug where the script would crash if port forwarding or other setup configurations weren't met
+//Changed how hash database checks for already known hashes, speeding this up
+//Changed some wording on commands
+//Removed example template generation as it didn't work
 
 //Notes:
-//When an invalid/unbuildable script is passed to persist/generate, it will be unabkle to build them
+//When an invalid/unbuildable script is passed to persist/generate, it will be unable to build them
 //Brick command cannot be run more than once on a session
+
+print "Loading functions..."
 
 v_to_num=function(p,t)
 	for x in range(0,p.len-1)
@@ -22,30 +22,29 @@ v_to_num=function(p,t)
 	return null
 end function
 
-//import metaxploit and crypto
 check_setup = function()
 	metaxploit = include_lib("/lib/metaxploit.so")
 	if not metaxploit then
-		print("metaxploit library not found in /lib folder, searching current folder!")
+		print "metaxploit library not found in /lib folder, searching current folder!"
 		metaxploit=include_lib(current_path+"/metaxploit.so")
 		if not metaxploit then
-			exit("Unable to find metaxploit lib!")
+			exit "Unable to find metaxploit lib!"
 		end if
 	end if
 	crypto = include_lib("/lib/crypto.so")
 	if not crypto then
-		print("crypto library not found in /lib folder, searching current folder!")
+		print "crypto library not found in /lib folder, searching current folder!"
 		crypto=include_lib(current_path+"/crypto.so")
 		if not crypto then
-			exit("Unable to find crypto lib!")
+			exit "Unable to find crypto lib!"
 		end if
 	end if
 	rshell_lib = include_lib("/lib/librshell.so")
 	if not rshell_lib then
-		print("rshell library not found in /lib folder, searching current folder!")
+		print "rshell library not found in /lib folder, searching current folder!"
 		rshell_lib=include_lib(current_path+"/librshell.so")
 		if not rshell_lib then
-			exit("Unable to find rshell lib!")
+			exit "Unable to find rshell lib!"
 		end if
 	end if
 	hc = get_shell.host_computer
@@ -55,9 +54,9 @@ check_setup = function()
 		if port.port_number == 1222 and not port.is_closed then installed = true
 	end for
 	if not installed then
-		print("Installing rshell service...")
+		print "Installing rshell service..."
 		rshell_lib.install_service
-		print("Starting rshell service on port 1222...")
+		print "Starting rshell service on port 1222..."
 		rshell_lib.start_service
 		p = get_router
 		used = false
@@ -65,24 +64,21 @@ check_setup = function()
 			if x.port_number == 1222 then used = true
 		end for
 		if not used then
-			user_input("Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local/router port 1222 if you haven't already!")
+			user_input "Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local/router port 1222 if you haven't already!" 
 		else
-			user_input("Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local port 1222 if you haven't already, you will need to use another port on your router as 1222 is already being used!")
+			user_input "Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local port 1222 if you haven't already, you will need to use another port on your router as 1222 is already being used!" 
 		end if
 	end if
 	if not hc.File(home_dir+"/Weaver") then hc.create_folder(home_dir,"Weaver")
 	if not hc.File(home_dir+"/Weaver/templates") then
-		print("No templates were found, you'll be unable to generate rshells unless you add some!"+char(10)+
-		"\nGenerating example template...")
+		print "No templates were found, you'll be unable to generate rshells unless you add some!"
 		hc.create_folder(home_dir+"/Weaver","templates")
-		hc.touch(home_dir+"/Weaver/templates","WeaverTemplate.wt")
-		hc.File(home_dir+"/Weaver/templates/WeaverTemplate.wt").set_content("//This is an example template:"+ char(10)+ "m = include_lib(/lib/metaxploit.so)"+char(10)+"m.rshell_client(*IP*,*P*,*PN*)")
 	end if
 	if not hc.File(home_dir+"/Weaver/output") then hc.create_folder(home_dir+"/Weaver","output")
 	if not hc.File(home_dir+"/Weaver/hashes") then hc.touch(home_dir+"/Weaver","hashes")
 	if not hc.File(home_dir+"/Weaver/loot") then hc.create_folder(home_dir+"/Weaver","loot")
 	//if not get_shell.host_computer.File(home_dir+"/Weaver/plugins") then get_shell.host_computer.create_folder(home_dir+"/Weaver","plugins") Unusable as import_code doesnt support this
-	wait(3)
+	user_input "Hit enter to continue..."
 	console(metaxploit,crypto,rshell_lib)
 end function
 
@@ -139,7 +135,7 @@ console = function(metaxploit,crypto,rshell_lib)
 	"kill": ["[ID]", "Kill the specified process","kill (processID)","Kill the specified process on the current shell"],
 	"clearlogs": ["[N/A]", "Clear session's logs", "clearlogs", "Clear the current session's logs"],
 	"ssh": ["[-u,-pw,-ip,-p]", "Create a session via shell", "ssh [-u (username)] [-pw (password)] [-ip IP)] [Optional: -p (port)]", "Open a session via ssh to select as a session."],
-	"hashes": ["[N/A]", "Show number of hashes", "hashes", "Count all hashes in the hash database"],
+	"hashes": ["[N/A]", "Show number of hashes in the database", "hashes", "Count all hashes in the hash database"],
 	"decipher": ["[-f]", "Decipher an md5", "decipher [(string/account) OR -f (filename containing strings or accounts)]"],
 	"clear": ["[N/A]","Clear the screen","clear","Clear the terminal window"],
 	"streamer": ["[N/A]", "Enable streamer mode", "streamer", "Enable streamer mode to hide private info"],
@@ -151,11 +147,12 @@ console = function(metaxploit,crypto,rshell_lib)
 	sid = null
 	smode = false
 	hc = get_shell.host_computer
-	print("Loading hash database...")
+	print "Loading hash database..."
 	hashMap = loadHashes()
-	print("Spiderwebs are cool so im gonna put an Ascii one here")//spider/spiderweb here
-	print("Welcome to weaver "+uname)
-	print("Current version: <b>1.2</b>"+char(10))
+	print "Spiderwebs are cool so im gonna put an Ascii one here"//spider/spiderweb here
+	print "-----                                                "
+	print "Welcome to weaver "+uname
+	print "Current version: <b>1.2</b>"+char(10)
 	while exit2 == false
 		if sid != null then
 			sd = "(ses '<b>"+str(sid)+"</b>')"
@@ -163,9 +160,9 @@ console = function(metaxploit,crypto,rshell_lib)
 			sd = ""
 		end if
 		if smode then
-			command = user_input("["+uname+"@ internet - Weaver] "+sd+"> ")
+			command = user_input "["+uname+"@ internet - Weaver] "+sd+"> "
 		else
-			command = user_input("["+uname+"@"+hc.public_ip+" - "+hc.local_ip+"] "+sd+"> ")
+			command = user_input "["+uname+"@"+hc.public_ip+" - "+hc.local_ip+"] "+sd+"> "
 		end if
 		if command.split(" ")[0] == "help" then
 			if len(command.split(" ")) == 1 then
@@ -181,7 +178,7 @@ console = function(metaxploit,crypto,rshell_lib)
 					numdone = numdone + 1
 				end for
 				help_text = help_text.join(char(10))
-				print(help_text)
+				print help_text
 			else
 				ch = command.split(" ")[1]
 				if commands.indexes().indexOf(ch) != null then
@@ -192,21 +189,21 @@ console = function(metaxploit,crypto,rshell_lib)
 					help_text[1] = help_text[1].replace("1",commands[ch][-1])
 					help_text[2] = help_text[2].replace("1",commands[ch][-2])
 					help_text = help_text.join(char(10))
-					print(help_text)
+					print help_text
 				else
-					print("Error: Command '"+ch+"' not found!\n")
+					print "Error: Command '"+ch+"' not found!\n"
 				end if
 			end if
 		else if command.split(" ")[0] == "hashes" then
-			print(hashMap.len + " hashes loaded!")
+			print hashMap.len + " hashes loaded!"
 		else if command.split(" ")[0] == "streamer" then
 			if smode then
 				smode = false
-				print("Streamer mode disabled")
+				print "Streamer mode disabled"
 			else
 				smode = true
 				clear_screen()
-				print("Streamer mode enabled")
+				print "Streamer mode enabled"
 			end if
 		else if command.split(" ")[0] == "kill" then
 			if len(command.split(" ")) > 1 then
@@ -218,20 +215,20 @@ console = function(metaxploit,crypto,rshell_lib)
 						if pr.split(" ")[1] != "PID" then p.push(pr.split(" ")[1])
 					end for
 					if not p.indexOf(pid) then
-						print("No process with id "+pid+" found")
+						print "No process with id "+pid+" found"
 					else
 						cp = current_shell.host_computer.close_program(pid.to_int)
 						if not cp then
-							print("Unable to kill process with id "+pid)
+							print "Unable to kill process with id "+pid
 						else
-							print("Process killed successfully")
+							print "Process killed successfully"
 						end if
 					end if
 				else
-					print("No session currently selected")
+					print "No session currently selected"
 				end if
 			else
-				print("No process id specified")
+				print "No process id specified"
 			end if
 		else if command.split(" ")[0] == "sessions" then
 			if len(command.split(" ")) > 1 then
@@ -240,81 +237,85 @@ console = function(metaxploit,crypto,rshell_lib)
 					if command.split(" ").len > 2 then
 						f = metaxploit.rshell_server
 						if f.len == 0 then
-							print("No sessions online!")
+							print "No sessions online!"
 						else
 							if f.len >= command.split(" ")[2].to_int then
 								current_shell = f[command.split(" ")[2].to_int]
 								sid = command.split(" ")[2]
-								print("Session with ID '<b>"+command.split(" ")[2]+"</b>' selected!")
+								print "Session with ID '<b>"+command.split(" ")[2]+"</b>' selected!"
 							else
-								print("No session with that ID found!")
+								print "No session with that ID found!"
 							end if
 						end if
 					else
-						print("No session specified!")
+						print "No session specified!"
 					end if
 				else if command.split(" ")[1] == "-d" then
 					if current_shell then
-						print("Disabling interaction with current session")
+						print "Disabling interaction with current session"
 						current_shell = null
 						sid = null
 					else
-						print("No session currently selected")
+						print "No session currently selected"
 					end if
 				end if
 			else
 				print()
 				f = metaxploit.rshell_server
-				if f.len == 0 then
-					print("No sessions online!")
+				if typeof(f) == "string" then
+					print "Error: "+f+char(10)+"Make sure to port forward your rshell server!"
 				else
-					if f.len > 1 then
-						s = "s"
+					if f.len == 0 then
+						print "No sessions online!"
 					else
-						s = ""
-					end if
-					print(f.len + " session"+s+" connected!")
-					for i in range(0, f.len - 1)
-						if not smode then
-							print("\n<b>Session (" + (i) + ")</b>\nPublic IP: " + 
-							f[i].host_computer.public_ip + "\nLocal IP: " + 
-							f[i].host_computer.local_ip)
+						if f.len > 1 then
+							s = "s"
 						else
-							print("\n<b>Session (" + (i) + ")</b>\nPublic IP: Streamer mode\nLocal IP: " + 
-							f[i].host_computer.local_ip)
+							s = ""
 						end if
-					end for
-					print("\nUse sessions -i [sessionid] to interact with a session!")
+						print f.len + " session"+s+" connected!"
+						for i in range(0, f.len - 1)
+							if not smode then
+								print "\n<b>Session (" + (i) + ")</b>\nPublic IP: " + 
+								f[i].host_computer.public_ip + "\nLocal IP: " + 
+								f[i].host_computer.local_ip
+							else
+								print "\n<b>Session (" + (i) + ")</b>\nPublic IP: Streamer mode\nLocal IP: " + 
+								f[i].host_computer.local_ip
+							end if
+						end for
+						print "\nUse sessions -i [sessionid] to interact with a session!"
+					end if
 				end if
 			end if
 		else if command.split(" ")[0] == "ses" then
 			if command.indexOf("-t") != null then
 				if current_shell then
-					print("Opening terminal to session <b>("+sid+")</b>!"+char(10)+("v" * 10)+char(10))
+					print "Opening terminal to session <b>("+sid+")</b>!"+char(10)+("v" * 10)+char(10)
 					current_shell.start_terminal
 				else
-					print("No session currently selected")
+					print "No session currently selected"
 				end if
 			else
 				if current_shell then
-					print("Session <b>("+sid+")</b> currently selected\nPublic IP: " + 
+					print "Session <b>("+sid+")</b> currently selected\nPublic IP: " + 
 					current_shell.host_computer.public_ip + "\nLocal IP: " + 
-					current_shell.host_computer.local_ip)
+					current_shell.host_computer.local_ip
 				else
-					print("No session currently selected")
+					print "No session currently selected"
 				end if
 			end if
 		else if command.split(" ")[0] == "clearlogs" then
 			if current_shell then
 				logs = current_shell.host_computer.File("/var/system.log")
 				if not logs.has_permission("w") then
-					print("clearlogs is unable to continue - unable to re-write logs")
+					print "clearlogs is unable to continue - unable to re-write logs"
 				else
 					logs.set_content("Weaver was here")
-					print("Set logs content")
+					print "Set logs content"
 				end if
 			else
-				print("No session currently selected")
+				print "No session currently selected"
 			end if
 		else if command.split(" ")[0] == "ssh" then
 			command = command.split(" ")
@@ -331,47 +332,47 @@ console = function(metaxploit,crypto,rshell_lib)
 						end if
 						tmp_s = get_shell.connect_service(ip,port,user,passw)
 						if typeof(tmp_s) != "shell" then
-							print("Unable to connect to specified device")
+							print "Unable to connect to specified device"
 						else
 							current_shell = tmp_s
 							sid = "Cutsom"
 						end if
 					else
-						print("ssh unable to continue - No password given")
+						print "ssh unable to continue - No password given"
 					end if
 				else
-					print("ssh unable to continue - No username given")
+					print "ssh unable to continue - No username given"
 				end if
 			else
-				print("ssh unable to continue - No ip given")
+				print "ssh unable to continue - No ip given"
 			end if
 		else if command.split(" ")[0] == "brick" then
 			if current_shell then
-				print("Attempting to brick current session...")
-				print("Deleting /bin folder")
+				print "Attempting to brick current session..."
+				print "Deleting /bin folder"
 				brick(current_shell.host_computer.File("/bin"))
-				print("Deleting /usr/bin folder")
+				print "Deleting /usr/bin folder"
 				brick(current_shell.host_computer.File("/usr/bin"))
-				print("Deleting /lib folder")
+				print "Deleting /lib folder"
 				brick(current_shell.host_computer.File("/lib"))
-				print("Deleting /boot folder")
+				print "Deleting /boot folder"
 				brick(current_shell.host_computer.File("/boot"))
-				print("Deleting / folder")
+				print "Deleting / folder"
 				brick(current_shell.host_computer.File("/"))
-				print("Grabbing processes")
+				print "Grabbing processes"
 				procs = current_shell.host_computer.show_procs.split(char(10))
 				p = []
 				for pr in procs
 					if pr.split(" ")[1] != "PID" then p.push(pr.split(" ")[1])
 				end for
-				print("Killing all possible processes")
+				print "Killing all possible processes"
 				for proc in p
 					cp = current_shell.host_computer.close_program(proc.to_int)
-					if not cp then print("Unable to kill process with id "+proc)
+					if not cp then print "Unable to kill process with id "+proc
 				end for
-				print("Finished brick attempt")
+				print "Finished brick attempt"
 			else
-				print("No session currently selected")
+				print "No session currently selected"
 			end if
 		else if command.split(" ")[0] == "persist" then
 			if current_shell then
@@ -380,12 +381,12 @@ console = function(metaxploit,crypto,rshell_lib)
 					r = command[v_to_num(command,"-f")+1]
 					r_f = hc.File(r)
 					if not r_f then
-						print("persist is unable to continue - unable to find specified file")
+						print "persist is unable to continue - unable to find specified file"
 					else
 						if not r_f.has_permission("r") then
-							print("persist is unable to continue - unable to read specified file")
+							print "persist is unable to continue - unable to read specified file"
 						else
-							print("Copying local file...")
+							print "Copying local file...")=
 							r_f = r_f.get_content()
 							rs_users = current_shell.host_computer.File("/home").get_folders
 							rs_users = rs_users[-1].path
@@ -393,67 +394,71 @@ console = function(metaxploit,crypto,rshell_lib)
 							rs_f = current_shell.host_computer.File(rs_users+"/t.src")
 							rs_f.set_content(r_f)
 							if not current_shell.host_computer.File("/etc/init.d") then current_shell.host_computer.create_folder("/etc","init.d")
-							print("Building file...")
+							print "Building file..."
 							f = current_shell.build(rs_users+"/t.src","/etc/init.d")
 							rs_f.delete()
-							print(f)
-							print("Renaming file...")
+							print f
+							print "Renaming file..."
 							rs_f = current_shell.host_computer.File("/etc/init.d/t")
-							print(rs_f)
+							print rs_f
 							rs_f.copy("/etc/init.d",".t")
 							rs_f.delete()
-							print("Sucess, persistence added")
+							print "Sucess, persistence added"
 						end if
 					end if
 				else
-					print("persist is unable to continue - no file specified")
+					print "persist is unable to continue - no file specified"
 				end if
 			else
-				print("No session currently selected")
+				print "No session currently selected"
 			end if
 		else if command.split(" ")[0] == "upload" then
 			command = command.split(" ")
 			if current_shell then
 				if command.len < 3 then
-					print("Too few arguments given")
+					print "Too few arguments given"
 				else
 					if not hc.File(command[1]) then
-						print("Unable to access file/folder on local device at "+command[1])
+						print "Unable to access file/folder on local device at "+command[1]
 					else
-						if not current_shell.host_computer.File(command[2]) then
-							print("Unable to access file/folder on remote device at "+command[2])
+						if not hc.File(command[1]).has_permission("r") then
+							print "Unable to access file/folder on local device at "+command[1]
 						else
-							if not current_shell.host_computer.File(command[2]).has_permission("w") then
-								print("Unable to write file/folder on remote device at "+command[2])
+							if not current_shell.host_computer.File(command[2]) then
+								print "Unable to access file/folder on remote device at "+command[2]
 							else
-								get_shell.scp(command[1], command[2], current_shell)
-								print("Successfully uploaded "+command[1])
+								if not current_shell.host_computer.File(command[2]).has_permission("w") then
+									print "Unable to write file/folder on remote device at "+command[2]
+								else
+									get_shell.scp(command[1], command[2], current_shell)
+									print "Successfully uploaded "+command[1]
+								end if
 							end if
 						end if
 					end if
 				end if
 			else
-				print("No session currently selected")
+				print "No session currently selected"
 			end if
 		else if command.split(" ")[0] == "download" then
 			command = command.split(" ")
 			if current_shell then
 				if command.len < 2 then
-					print("Too few arguments given")
+					print "Too few arguments given"
 				else
 					if not current_shell.host_computer.File(command[1]) then
-						print("Unable to access file/folder on remote device at "+command[2])
+						print "Unable to access file/folder on remote device at "+command[2]
 					else
 						if not current_shell.host_computer.File(command[1]).has_permission("w") then
-							print("Unable to write file/folder on remote device at "+command[2])
+							print "Unable to write file/folder on remote device at "+command[2]
 						else
 							current_shell.scp(command[1], home_dir+"/Weaver/loot", get_shell)
-							print("Successfully downloaded "+command[1])
+							print "Successfully downloaded "+command[1]
 						end if
 					end if
 				end if
 			else
-				print("No session currently selected")
+				print "No session currently selected"
 			end if
 		else if command.split(" ")[0] == "generate" then
 			command = command.split(" ")
@@ -462,43 +467,43 @@ console = function(metaxploit,crypto,rshell_lib)
 				templates_folder = hc.File(home_dir+"/Weaver/templates")
 				template_file = hc.File(home_dir+"/Weaver/templates/"+template_name+".wt")
 				if not template_file then
-					print("Template with name '"+template_name+"' is not in your templates folder!")
+					print "Template with name '"+template_name+"' is not in your templates folder!"
 				else
-					print("Template '<b>"+template_name+"</b>' selected...")
+					print "Template '<b>"+template_name+"</b>' selected..."
 					if command.indexOf("-pn") != null then
 						process_name = command[v_to_num(command,"-pn")+1]
-						print("Process name set to '<b>"+process_name+"</b>'...")
+						print "Process name set to '<b>"+process_name+"</b>'..."
 						if command.indexOf("-ip") != null then
 							ip = command[v_to_num(command,"-ip")+1]
-							print("IP set to '<b>"+ip+"</b>'...")
+							print "IP set to '<b>"+ip+"</b>'..."
 						else
 							ip = hc.public_ip
-							print("IP defaulted to '<b>"+ip+"</b>'...")
+							print "IP defaulted to '<b>"+ip+"</b>'..."
 						end if
 						if command.indexOf("-p") != null then
 							port = command[v_to_num(command,"-p")+1]
-							print("Port set to '<b>"+port+"</b>'...")
+							print "Port set to '<b>"+port+"</b>'..."
 						else
 							port = "1222"
-							print("Port defaulted to '<b>"+port+"</b>'...")
+							print "Port defaulted to '<b>"+port+"</b>'..."
 						end if
 						if command.indexOf("-o") != null then
 							output_name = command[v_to_num(command,"-o")+1]
-							print("Output name set to '<b>"+output_name+"</b>'...")
+							print "Output name set to '<b>"+output_name+"</b>'..."
 						else
 							output_name = template_name+".rshell"
-							print("Output name defaulted to '<b>"+output_name+"</b>'...")
+							print "Output name defaulted to '<b>"+output_name+"</b>'..."
 						end if
 						rs = template_file.get_content()
 						rs = rs.replace("\*IP\*",ip).replace("\*P\*",port).replace("\*PN\*",process_name)
 						output_file = hc.File(home_dir+"/Weaver/output/"+output_name)
 						overwrite = true
 						if output_file then
-							overwrite = user_input("\nA file was detected at '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'"+ char(10)+ char(10)+"Do you with to overwrite it [y/N] :    ")
+							overwrite = user_input "\nA file was detected at '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'"+ char(10)+ char(10)+"Do you with to overwrite it [y/N] :    "
 							if overwrite.indexOf("Y") != null or overwrite.indexOf("y") != null then
-								print("\nOverwriting...")
+								print "\nOverwriting..."
 							else
-								print("\nCancelled due to overwrite!")
+								print "\nCancelled due to overwrite!"
 								overwrite = false
 							end if
 						end if
@@ -509,15 +514,15 @@ console = function(metaxploit,crypto,rshell_lib)
 							f = hc.File(home_dir+"/Weaver/output/"+output_name)
 							if f then f.delete()
 							get_shell.build(home_dir+"/Weaver/output/"+output_name+".src",home_dir+"/Weaver/output/",false)
-							print("Successfully saved rshell to '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'")
+							print "Successfully saved rshell to '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'"
 							output_file.delete()
 						end if
 					else
-						print("No process name specified, unable to continue!")
+						print "No process name specified, unable to continue!"
 					end if
 				end if
 			else
-				print("No template specified, unable to continue!")
+				print "No template specified, unable to continue!"
 			end if
 		else if command.split(" ")[0] == "templates" then
 			templates = hc.File(home_dir+"/Weaver/templates").get_files()
@@ -526,9 +531,9 @@ console = function(metaxploit,crypto,rshell_lib)
 			else
 				s = ""
 			end if
-			print("Found '<b>"+str(templates.len)+"</b>' template"+s+":")
+			print "Found '<b>"+str(templates.len)+"</b>' template"+s+":"
 			for t in templates
-				print(t.name.replace(".wt",""))
+				print t.name.replace(".wt","")
 			end for
 		else if command.split(" ")[0] == "steal" then
 			if current_shell then
@@ -542,10 +547,10 @@ console = function(metaxploit,crypto,rshell_lib)
 				if s.indexOf(true) != null then
 					pw = {"Users": [], "Bank": [], "Mail": []}
 					if s[0] then
-						print("Stealing user passwords\n")
+						print "Stealing user passwords\n"
 						cf = current_shell.host_computer.File("/etc/passwd")
 						if not cf.has_permission("r") then
-							print("Unable to steal user passwords, no read privellege\n")
+							print "Unable to steal user passwords, no read privellege\n"
 						else
 							p = cf.get_content()
 							p = p.split(char(10))
@@ -554,7 +559,7 @@ console = function(metaxploit,crypto,rshell_lib)
 								if u.indexOf(":") != null then t.push(u)
 							end for
 							p = t
-							print("Found user passwords: "+str(p.len))
+							print "Found user passwords: "+str(p.len)
 							for u in p
 								print(u)
 								pw["Users"].push(u)
@@ -563,21 +568,21 @@ console = function(metaxploit,crypto,rshell_lib)
 						end if
 					end if
 					if s[1] then
-						print("Stealing bank passwords\n")
+						print "Stealing bank passwords\n"
 						ul = current_shell.host_computer.File("/home")
 						if not ul.has_permission("r") then
-							print("Unable to steal bank passwords, no home read privellege\n")
+							print "Unable to steal bank passwords, no home read privellege\n"
 						else
 							for user in ul.get_folders()
 								if not user.has_permission("r") then
-									print("Unable to steal bank passwords from '"+user.name+"', no user read privellege\n")
+									print "Unable to steal bank passwords from '"+user.name+"', no user read privellege\n"
 								else
 									for tmp in user.get_folders()
 										if tmp.name != "Config" then continue
 										for file in tmp.get_files()
 											if file.name != "Bank.txt" then continue
 											if not file.has_permission("r") then
-												print("Unable to steal bank passwords from '"+user.name+"', no Bank.txt read privellege\n")
+												print "Unable to steal bank passwords from '"+user.name+"', no Bank.txt read privellege\n"
 											else
 												b = file.get_content
 												b = b.split(char(10))
@@ -586,9 +591,9 @@ console = function(metaxploit,crypto,rshell_lib)
 													if u.indexOf(":") != null then t.push(u)
 												end for
 												b = t
-												print("Found bank passwords of '"+user.name+"': "+str(b.len))
+												print "Found bank passwords of '"+user.name+"': "+str(b.len)
 												for u in b
-													print(u)
+													print u
 													pw["Bank"].push(u)
 												end for
 												print()
@@ -600,21 +605,21 @@ console = function(metaxploit,crypto,rshell_lib)
 						end if
 					end if
 					if s[2] then
-						print("Stealing mail passwords\n")
+						print "Stealing mail passwords\n"
 						ul = current_shell.host_computer.File("/home")
 						if not ul.has_permission("r") then
-							print("Unable to steal mail passwords, no home read privellege\n")
+							print "Unable to steal mail passwords, no home read privellege\n"
 						else
 							for user in ul.get_folders()
 								if not user.has_permission("r") then
-									print("Unable to steal mail passwords from '"+user.name+"', no user read privellege\n")
+									print "Unable to steal mail passwords from '"+user.name+"', no user read privellege\n"
 								else
 									for tmp in user.get_folders()
 										if tmp.name != "Config" then continue
 										for file in tmp.get_files()
 											if file.name != "Mail.txt" then continue
 											if not file.has_permission("r") then
-												print("Unable to steal mail passwords from '"+user.name+"', no Mail.txt read privellege\n")
+												print "Unable to steal mail passwords from '"+user.name+"', no Mail.txt read privellege\n"
 											else
 												b = file.get_content
 												b = b.split(char(10))
@@ -623,9 +628,9 @@ console = function(metaxploit,crypto,rshell_lib)
 													if u.indexOf(":") != null then t.push(u)
 												end for
 												b = t
-												print("Found mail passwords of user '"+user.name+"': "+str(b.len))
+												print "Found mail passwords of user '"+user.name+"': "+str(b.len)
 												for u in b
-													print(u)
+													print u
 													pw["Mail"].push(u)
 												end for
 												print()
@@ -638,7 +643,7 @@ console = function(metaxploit,crypto,rshell_lib)
 					end if
 					if s[3] then
 						if s[0] then
-							print("Deciphering user passwords\n")
+							print "Deciphering user passwords\n"
 							for u in range(0,pw["Users"].len-1)
 								pp = pw["Users"][u].split(":")
 								aR = false
@@ -646,6 +651,7 @@ console = function(metaxploit,crypto,rshell_lib)
 									if hash["key"] == pp[1] then
 										pw["Users"][u] = pp[0] + ":" + hash["value"]
 										aR  = true
+										break
 									end if
 								end for
 								if not aR then
@@ -656,12 +662,12 @@ console = function(metaxploit,crypto,rshell_lib)
 								end if
 							end for
 							for u in pw["Users"]
-								print((u.split(":")).join(" : "))
+								print (u.split(":")).join(" : ")
 							end for
 							print()
 						end if
 						if s[1] then
-							print("Deciphering bank passwords\n")
+							print "Deciphering bank passwords\n"
 							for u in range(0,pw["Bank"].len-1)
 								pp = pw["Bank"][u].split(":")
 								aR = false
@@ -669,6 +675,7 @@ console = function(metaxploit,crypto,rshell_lib)
 									if hash["key"] == pp[1] then
 										pw["Bank"][u] = pp[0] + ":" + hash["value"]
 										aR  = true
+										break
 									end if
 								end for
 								if not aR then
@@ -679,12 +686,12 @@ console = function(metaxploit,crypto,rshell_lib)
 								end if
 							end for
 							for u in pw["Bank"]
-								print((u.split(":")).join(" : "))
+								print (u.split(":")).join(" : ")
 							end for
 							print()
 						end if
 						if s[2] then
-							print("Deciphering mail passwords\n")
+							print "Deciphering mail passwords\n"
 							for u in range(0,pw["Mail"].len-1)
 								pp = pw["Mail"][u].split(":")
 								aR = false
@@ -692,6 +699,7 @@ console = function(metaxploit,crypto,rshell_lib)
 									if hash["key"] == pp[1] then
 										pw["Mail"][u] = pp[0] + ":" + hash["value"]
 										aR  = true
+										break
 									end if
 								end for
 								if not aR then
@@ -702,41 +710,41 @@ console = function(metaxploit,crypto,rshell_lib)
 								end if
 							end for
 							for u in pw["Mail"]
-								print((u.split(":")).join(" : "))
+								print (u.split(":")).join(" : ")
 							end for
 						end if
 					end if
 				else
-					print("Stealer is unable to continue - nothing specified")
+					print "Stealer is unable to continue - nothing specified"
 				end if
 			else
-				print("No session currently selected")
+				print "No session currently selected"
 			end if
 		else if command.split(" ")[0] == "procs" then
 			if current_shell then
-				print("Current processes of session <b>("+sid+")</b>"+char(10))
-				print(format_columns(current_shell.host_computer.show_procs))
+				print "Current processes of session <b>("+sid+")</b>"+char(10)
+				print format_columns(current_shell.host_computer.show_procs)
 			else
-				print("No session currently selected")
+				print "No session currently selected"
 			end if
 		else if command.split(" ")[0] == "decipher" then
 			c = command.split(" ")
 			if c.len < 2 then
-				print("Decipher stopped - Invalid usage")
+				print "Decipher stopped - Invalid usage"
 			else
 				if c.indexOf("-f") != null then
 					fpath = c[v_to_num(c,"-f")+1]
 					f = hc.File(fpath)
 					if not f then
-						print("Decipher stopped - Invalid path")
+						print "Decipher stopped - Invalid path"
 					else
 						if not f.has_permission("r") != null then
-							print("Decipher stopped - Can't read file")
+							print "Decipher stopped - Can't read file"
 						else
 							content = f.get_content()
 							content = content.split(char(10))
 							if content[0].indexOf(":") != null then
-								print("Deciphering file in password mode: "+f.name)
+								print "Deciphering file in password mode: "+f.name
 								for u in range(0,content.len-1)
 									pp = content[u].split(":")
 									aR = false
@@ -744,6 +752,7 @@ console = function(metaxploit,crypto,rshell_lib)
 										if hash["key"] == pp[1] then
 											content[u] = pp[0] + ":" + hash["value"]
 											aR  = true
+											break
 										end if
 									end for
 									if not aR then
@@ -754,16 +763,17 @@ console = function(metaxploit,crypto,rshell_lib)
 									end if
 								end for
 								for u in content
-									print((u.split(":")).join(" : "))
+									print (u.split(":")).join(" : ")
 								end for
 							else
-								print("Deciphering file in string mode: "+f.name)
+								print "Deciphering file in string mode: "+f.name
 								for u in range(0,content.len-1)
 									aR = false
 									for hash in hashMap
 										if hash["key"] == content[u] then
 											content[u] = hash["value"]
 											aR  = true
+											break
 										end if
 									end for
 									if not aR then
@@ -774,20 +784,21 @@ console = function(metaxploit,crypto,rshell_lib)
 									end if
 								end for
 								for u in content
-									print(u)
+									print u
 								end for
 							end if
 						end if
 					end if
 				else
 					if c[1].indexOf(":") != null then
-						print("Deciphering account: "+c[1])
+						print "Deciphering account: "+c[1]
 						pp = c[1].split(":")
 						aR = false
 						for hash in hashMap
 							if hash["key"] == pp[1] then
 								content = hash["value"]
 								aR  = true
+								break
 							end if
 						end for
 						if not aR then
@@ -796,14 +807,15 @@ console = function(metaxploit,crypto,rshell_lib)
 							hashMap[pp[1]] = content
 						end if
 						content = pp[0]+" : "+content
-						print("Deciphered account: "+content)
+						print "Deciphered account: "+content
 					else
-						print("Deciphering string: "+c[1])
+						print "Deciphering string: "+c[1]
 						aR = false
 						for hash in hashMap
 							if hash["key"] == c[1] then
 								content = hash["value"]
 								aR  = true
+								break
 							end if
 						end for
 						if not aR then
@@ -811,21 +823,22 @@ console = function(metaxploit,crypto,rshell_lib)
 							hashMap.push(c[1])
 							hashMap[c[1]] = content
 						end if
-						print("Deciphered string: "+content)
+						print "Deciphered string: "+content
 					end if
 				end if
 			end if
 		else if command.split(" ")[0] == "clear" then
-			clear_screen()
+			clear_screen
 		else if command.split(" ")[0] == "exit" then 
 			exit2 = true
 		else
-			print("Error: Command '"+command.split(" ")[0]+"' not found!")
+			print "Error: Command '"+command.split(" ")[0]+"' not found!"
 		end if
 	end while
-	print("Saving hash database...")
+	print "Saving hash database..."
 	saveHashes(hashMap)
 end function
 
+print "Checking setup..."
 check_setup()
-exit("\nThanks for using Weaver!\n")
+exit "\nThanks for using Weaver!\n"
