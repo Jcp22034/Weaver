@@ -386,7 +386,7 @@ console = function(metaxploit,crypto,rshell_lib)
 						if not r_f.has_permission("r") then
 							print "persist is unable to continue - unable to read specified file"
 						else
-							print "Copying local file...")=
+							print "Copying local file..."
 							r_f = r_f.get_content()
 							rs_users = current_shell.host_computer.File("/home").get_folders
 							rs_users = rs_users[-1].path
