@@ -499,7 +499,7 @@ console = function(metaxploit,crypto,rshell_lib)
 						output_file = hc.File(home_dir+"/Weaver/output/"+output_name)
 						overwrite = true
 						if output_file then
-							overwrite = user_input "\nA file was detected at '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'"+ char(10)+ char(10)+"Do you with to overwrite it [y/N] :    "
+							overwrite = user_input("\nA file was detected at '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'"+ char(10)+ char(10)+"Do you with to overwrite it [y/N] :    ")
 							if overwrite.indexOf("Y") != null or overwrite.indexOf("y") != null then
 								print "\nOverwriting..."
 							else
