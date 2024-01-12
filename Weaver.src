@@ -160,9 +160,9 @@ console = function(metaxploit,crypto,rshell_lib)
 			sd = ""
 		end if
 		if smode then
-			command = user_input "["+uname+"@ internet - Weaver] "+sd+"> "
+			command = user_input("["+uname+"@ internet - Weaver] "+sd+"> ")
 		else
-			command = user_input "["+uname+"@"+hc.public_ip+" - "+hc.local_ip+"] "+sd+"> "
+			command = user_input("["+uname+"@"+hc.public_ip+" - "+hc.local_ip+"] "+sd+"> ")
 		end if
 		if command.split(" ")[0] == "help" then
 			if len(command.split(" ")) == 1 then
