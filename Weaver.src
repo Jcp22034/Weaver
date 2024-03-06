@@ -1,17 +1,14 @@
-//Version 1.3
+//Version 1.4
 
 //Changes:
-//Added loading messages on startup
-//Changed print, exit and user_input calling to use less chracters
-//Added a check to upload command that if the file is not readable, it wont be moved across
-//Fixed a bug where the script would crash if port forwarding or other setup configurations weren't met
-//Changed how hash database checks for already known hashes, speeding this up
-//Changed some wording on commands
-//Removed example template generation as it didn't work
+//Added long description for 'decipher'
+//Added waiting before any deciphering, allowing printing to be done properly
+//Put brackets back around user_input so it functioned properly
+//Added support for using '.wt' when specifiying a template
+//Attempting to build an unbuildable/invalid script will now return an error (build and persist commands)
 
 //Notes:
-//When an invalid/unbuildable script is passed to persist/generate, it will be unable to build them
-//Brick command cannot be run more than once on a session
+//Brick command cannot be run more than once on a session - You've already bricked the device
 
 print "Loading functions..."
 
@@ -64,9 +61,9 @@ check_setup = function()
 			if x.port_number == 1222 then used = true
 		end for
 		if not used then
-			user_input "Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local/router port 1222 if you haven't already!" 
+			user_input("Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local/router port 1222 if you haven't already!")
 		else
-			user_input "Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local port 1222 if you haven't already, you will need to use another port on your router as 1222 is already being used!" 
+			user_input("Setup is complete, run 'Browser.exe "+p.local_ip+":8080' to add a port forwarding rule to local port 1222 if you haven't already, you will need to use another port on your router as 1222 is already being used!")
 		end if
 	end if
 	if not hc.File(home_dir+"/Weaver") then hc.create_folder(home_dir,"Weaver")
@@ -78,7 +75,7 @@ check_setup = function()
 	if not hc.File(home_dir+"/Weaver/hashes") then hc.touch(home_dir+"/Weaver","hashes")
 	if not hc.File(home_dir+"/Weaver/loot") then hc.create_folder(home_dir+"/Weaver","loot")
 	//if not get_shell.host_computer.File(home_dir+"/Weaver/plugins") then get_shell.host_computer.create_folder(home_dir+"/Weaver","plugins") Unusable as import_code doesnt support this
-	user_input "Hit enter to continue..."
+	user_input("Hit enter to continue...")
 	console(metaxploit,crypto,rshell_lib)
 end function
 
@@ -136,7 +133,7 @@ console = function(metaxploit,crypto,rshell_lib)
 	"clearlogs": ["[N/A]", "Clear session's logs", "clearlogs", "Clear the current session's logs"],
 	"ssh": ["[-u,-pw,-ip,-p]", "Create a session via shell", "ssh [-u (username)] [-pw (password)] [-ip IP)] [Optional: -p (port)]", "Open a session via ssh to select as a session."],
 	"hashes": ["[N/A]", "Show number of hashes in the database", "hashes", "Count all hashes in the hash database"],
-	"decipher": ["[-f]", "Decipher an md5", "decipher [(string/account) OR -f (filename containing strings or accounts)]"],
+	"decipher": ["[-f]", "Decipher an md5", "decipher [(string/account) OR -f (filename containing strings or accounts)]", "Cracks the given hashes in account (user:hash) format or string (hash) format"],
 	"clear": ["[N/A]","Clear the screen","clear","Clear the terminal window"],
 	"streamer": ["[N/A]", "Enable streamer mode", "streamer", "Enable streamer mode to hide private info"],
 	"exit": ["[N/A]","Exit the application","exit","Exit "+program_path.split("/")[-1]]}
@@ -152,7 +149,7 @@ console = function(metaxploit,crypto,rshell_lib)
 	print "Spiderwebs are cool so im gonna put an Ascii one here"//spider/spiderweb here
 	print "-----                                                "
 	print "Welcome to weaver "+uname
-	print "Current version: <b>1.3</b>"+char(10)
+	print "Current version: <b>1.4</b>"+char(10)
 	while exit2 == false
 		if sid != null then
 			sd = "(ses '<b>"+str(sid)+"</b>')"
@@ -396,14 +393,18 @@ console = function(metaxploit,crypto,rshell_lib)
 							if not current_shell.host_computer.File("/etc/init.d") then current_shell.host_computer.create_folder("/etc","init.d")
 							print "Building file..."
 							f = current_shell.build(rs_users+"/t.src","/etc/init.d")
-							rs_f.delete()
-							print f
-							print "Renaming file..."
-							rs_f = current_shell.host_computer.File("/etc/init.d/t")
-							print rs_f
-							rs_f.copy("/etc/init.d",".t")
-							rs_f.delete()
-							print "Sucess, persistence added"
+							if f != "" then
+								print "Unable to build file, stopping... Error: "+f
+								rs_f.delete()
+							else
+								rs_f.delete()
+								print "Renaming file..."
+								rs_f = current_shell.host_computer.File("/etc/init.d/t")
+								print rs_f
+								rs_f.copy("/etc/init.d",".t")
+								rs_f.delete()
+								print "Sucess, persistence added"
+							end if
 						end if
 					end if
 				else
@@ -465,7 +466,9 @@ console = function(metaxploit,crypto,rshell_lib)
 			if command.indexOf("-t") != null then
 				template_name = command[v_to_num(command,"-t")+1]
 				templates_folder = hc.File(home_dir+"/Weaver/templates")
-				template_file = hc.File(home_dir+"/Weaver/templates/"+template_name+".wt")
+				extension = ".wt"
+				if template_name.indexOf(".wt") != null then extension = ""
+				template_file = hc.File(home_dir+"/Weaver/templates/"+template_name+extension)
 				if not template_file then
 					print "Template with name '"+template_name+"' is not in your templates folder!"
 				else
@@ -513,8 +516,12 @@ console = function(metaxploit,crypto,rshell_lib)
 							output_file.set_content(rs)
 							f = hc.File(home_dir+"/Weaver/output/"+output_name)
 							if f then f.delete()
-							get_shell.build(home_dir+"/Weaver/output/"+output_name+".src",home_dir+"/Weaver/output/",false)
-							print "Successfully saved rshell to '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'"
+							bS = get_shell.build(home_dir+"/Weaver/output/"+output_name+".src",home_dir+"/Weaver/output/",false)
+							if bS == "" then
+								print "Successfully saved rshell to '<b>"+home_dir+"/Weaver/output/"+output_name+"</b>'"
+							else
+								print "Unable to build rshell, Error: "+bS
+							end if
 							output_file.delete()
 						end if
 					else
@@ -655,6 +662,7 @@ console = function(metaxploit,crypto,rshell_lib)
 									end if
 								end for
 								if not aR then
+									wait 0.1
 									p = crypto.decipher(pp[1])
 									pw["Users"][u] = pp[0]+":"+p
 									hashMap.push(pp[1])
@@ -679,6 +687,7 @@ console = function(metaxploit,crypto,rshell_lib)
 									end if
 								end for
 								if not aR then
+									wait 0.1
 									p = crypto.decipher(pp[1])
 									pw["Bank"][u] = pp[0]+":"+p
 									hashMap.push(pp[1])
@@ -703,6 +712,7 @@ console = function(metaxploit,crypto,rshell_lib)
 									end if
 								end for
 								if not aR then
+									wait 0.1
 									p = crypto.decipher(pp[1])
 									pw["Mail"][u] = pp[0]+":"+p
 									hashMap.push(pp[1])
@@ -756,6 +766,7 @@ console = function(metaxploit,crypto,rshell_lib)
 										end if
 									end for
 									if not aR then
+										wait 0.1
 										p = crypto.decipher(pp[1])
 										content[u] = pp[0]+":"+p
 										hashMap.push(pp[1])
@@ -777,6 +788,7 @@ console = function(metaxploit,crypto,rshell_lib)
 										end if
 									end for
 									if not aR then
+										wait 0.1
 										p = crypto.decipher(content[u])
 										hashMap.push(content[u])
 										hashMap[content[u]] = p
@@ -802,6 +814,7 @@ console = function(metaxploit,crypto,rshell_lib)
 							end if
 						end for
 						if not aR then
+							wait 0.1
 							content = crypto.decipher(pp[1])
 							hashMap.push(pp[1])
 							hashMap[pp[1]] = content
@@ -819,6 +832,7 @@ console = function(metaxploit,crypto,rshell_lib)
 							end if
 						end for
 						if not aR then
+							wait 0.1
 							content = crypto.decipher(c[1])
 							hashMap.push(c[1])
 							hashMap[c[1]] = content
