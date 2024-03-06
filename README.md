@@ -18,42 +18,32 @@ Snatch accounts, credentials, and data on your target's network movements with e
 These features are only the beginning; whether you clear the logs or brick the system when you're done,
 Weaver is the perfect tool to write your next chapter in social engineering.
 
-# Current Version - 1.3
+# Current Version - 1.4
 
 
 # Changes since last version
-Added loading messages on startup
-
-Changed print, exit and user_input calling to use less chracters
-
-Added a check to upload command that if the file is not readable, it wont be moved across
-
-Fixed a bug where the script would crash if port forwarding or other setup configurations weren't met
-
-Changed how hash database checks for already known hashes, speeding this up
-
-Changed some wording on commands
-
-Removed example template generation as it didn't work
+ - Added long description for 'decipher'
+ - Added waiting before any deciphering, allowing printing to be done properly
+ - Put brackets back around user_input so it functioned properly
+ - Added support for using '.wt' when specifiying a template
+ - Attempting to build an unbuildable/invalid script will now return an error (build and persist commands)
 
 
 # Notes
-When an invalid/unbuildable script is passed to persist/generate, it will be unabkle to build them
-
-Brick command cannot be run more than once on a session
+ - Brick command cannot be run more than once on a session
 
 # TODO
-User suggestions!
+ - User suggestions!
 
 
 # Requirements
-metaxploit.so library in /lib folder
+ - metaxploit.so library in /lib folder
 
-crypto.so library in /lib folder
+ - crypto.so library in /lib folder
 
-librshell.so library in /lib folder
+ - librshell.so library in /lib folder
 
-Control over local router port-forwarding rules
+ - Control over local router port-forwarding rules
 
 
 # Installation
