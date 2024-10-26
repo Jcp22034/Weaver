@@ -62,6 +62,8 @@ To declare a file as a template, you *must* set the extension to '.wt' and place
 
 ## Credits
 
++ Jcp22034 - Development & Documentation
+
 + Nil - QA & Documentation
 
 + Cotillion11 - QA
